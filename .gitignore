@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Environment variables (contains secrets)
+.env
+
+# Database file (contains user data)
+database/*.db
+database/*.db-shm
+database/*.db-wal
+
+# All uploaded media (recordings, images, audio)
+uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PM2 logs
+logs/
+*.log

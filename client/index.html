@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VocabPi</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 80px auto; padding: 0 20px; }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    p  { color: #666; }
+    .status { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <h1>VocabPi</h1>
+  <p>Vocabulary media server running on Raspberry Pi</p>
+  <div class="status" id="status">Checking server...</div>
+
+  <script>
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('status').innerHTML =
+          `✓ Server is ${data.status} — uptime ${data.uptime}`;
+      })
+      .catch(() => {
+        document.getElementById('status').textContent = '✗ Could not reach server';
+        document.getElementById('status').style.background = '#fef2f2';
+        document.getElementById('status').style.borderColor = '#fca5a5';
+      });
+  </script>
+</body>
+</html>
