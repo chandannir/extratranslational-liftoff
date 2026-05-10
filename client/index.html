@@ -1,33 +1,496 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VocabPi</title>
-  <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 80px auto; padding: 0 20px; }
-    h1 { font-size: 2rem; margin-bottom: 8px; }
-    p  { color: #666; }
-    .status { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin-top: 24px; }
-  </style>
-</head>
-<body>
-  <h1>VocabPi</h1>
-  <p>Vocabulary media server running on Raspberry Pi</p>
-  <div class="status" id="status">Checking server...</div>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ExtraTranslational</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#151618;--b2:#1e2022;--b3:#252729;--bd:#2e3033;--t:#e8e9ea;--t2:#8b8d91;--t3:#5a5c60;--ac:#3b7de9;--ac2:#2b6dd4;--red:#c0392b;--red2:#a93226;--grn:#27ae60;--r:10px;--fh:'Syne',sans-serif;--fm:'DM Mono',monospace}
+*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%;background:var(--bg);color:var(--t);font-family:var(--fm);font-size:14px}
+#auth-page{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at 30% 20%,#1a2744,var(--bg) 60%),radial-gradient(ellipse at 80% 80%,#1a1a2e,transparent 50%)}
+.aw{width:420px}.alo{display:flex;align-items:center;gap:10px;margin-bottom:40px;font-family:var(--fh);font-size:26px;font-weight:800}
+.at{display:flex;border-bottom:1px solid var(--bd);margin-bottom:32px}
+.atb{padding:10px 20px;cursor:pointer;font-family:var(--fm);font-size:13px;color:var(--t2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;letter-spacing:.05em}
+.atb.active{color:var(--t);border-color:var(--ac)}
+.af{display:flex;flex-direction:column;gap:16px}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fg label{font-size:11px;color:var(--t2);letter-spacing:.08em;text-transform:uppercase}
+.fg input,.mi{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;color:var(--t);font-family:var(--fm);font-size:14px;outline:none;transition:border-color .2s;width:100%}
+.fg input:focus,.mi:focus{border-color:var(--ac)}
+.ab{margin-top:8px;padding:13px;background:var(--ac);border:none;border-radius:var(--r);color:#fff;font-family:var(--fh);font-size:15px;font-weight:700;cursor:pointer;transition:background .2s;letter-spacing:.03em;width:100%}
+.ab:hover{background:var(--ac2)}
+.ae{color:#e74c3c;font-size:12px;background:rgba(231,76,60,.1);padding:8px 12px;border-radius:6px;border:1px solid rgba(231,76,60,.2);display:none}
+.adc{font-size:12px;color:var(--t3);line-height:1.6;margin-top:4px}
+#app-page{display:none;height:100vh;flex-direction:column}
+.ai{display:flex;flex:1;overflow:hidden;padding:12px;gap:10px}
+.sb{width:220px;flex-shrink:0;background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);display:flex;flex-direction:column;padding:20px 12px}
+.sbl{display:flex;align-items:center;gap:8px;font-family:var(--fh);font-size:17px;font-weight:800;padding:0 8px;margin-bottom:28px}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--t2);transition:all .15s;margin-bottom:2px;letter-spacing:.02em}
+.ni:hover{background:var(--b3);color:var(--t)}.ni.active{background:var(--ac);color:#fff}
+.nic{font-size:15px;width:18px;text-align:center}.sbb{margin-top:auto}.sbb .ni{color:var(--t3)}.sbb .ni:hover{color:var(--t2)}
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.main::-webkit-scrollbar{width:4px}.main::-webkit-scrollbar-track{background:transparent}.main::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+.sr{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sc{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px}
+.sl{font-size:11px;color:var(--t2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.sv{font-family:var(--fh);font-size:32px;font-weight:800}
+.pr{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1}
+.pn{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:20px;display:flex;flex-direction:column}
+.pt{display:flex;align-items:center;gap:8px;font-family:var(--fh);font-size:15px;font-weight:700;margin-bottom:16px}
+.sv2{background:#0a0a0b;border-radius:8px;flex:1;min-height:200px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;margin-bottom:14px}
+.sof{color:var(--t3);font-size:13px;display:flex;align-items:center;gap:8px}
+.sof .dot{width:8px;height:8px;border-radius:50%;background:var(--t3)}
+.sli{position:absolute;top:12px;right:12px;background:var(--red);color:#fff;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px;letter-spacing:.06em;animation:pulse 1.5s infinite;display:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.sc2{display:flex;gap:10px}
+.br{flex:1;padding:11px;background:var(--red);border:none;border-radius:8px;color:#fff;font-family:var(--fm);font-size:13px;cursor:pointer;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.br:hover{background:var(--red2)}.br.recording{background:#7f1d1d;animation:pulse 1.5s infinite}
+.bs{flex:1;padding:11px;background:var(--b3);border:1px solid var(--bd);border-radius:8px;color:var(--t);font-family:var(--fm);font-size:13px;cursor:pointer;transition:background .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.bs:hover{background:#2e3135}
+.wi{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:8px;border:1px solid var(--bd);margin-bottom:8px;transition:border-color .15s;cursor:pointer}
+.wi:hover{border-color:var(--ac)}
+.wt{width:38px;height:38px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0}
+.wn{font-family:var(--fh);font-size:14px;font-weight:700}.wm{font-size:11px;color:var(--t2);margin-top:2px}
+.wp{width:28px;height:28px;border-radius:50%;background:var(--b3);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;transition:all .15s;color:var(--t2);flex-shrink:0}
+.wp:hover{background:var(--ac);border-color:var(--ac);color:#fff}
+.view{display:none;flex-direction:column;gap:10px}.view.active{display:flex}
+.vh{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.ba{padding:9px 16px;background:var(--ac);border:none;border-radius:8px;color:#fff;font-family:var(--fm);font-size:12px;cursor:pointer;transition:background .2s;letter-spacing:.03em}
+.ba:hover{background:var(--ac2)}
+.vg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.vc{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:16px;cursor:pointer;transition:border-color .15s}
+.vc:hover{border-color:var(--ac)}
+.vct{width:48px;height:48px;border-radius:8px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.vcw{font-family:var(--fh);font-size:16px;font-weight:700;margin-bottom:4px}.vcr{font-size:11px;color:var(--t2)}
+.vca{display:flex;gap:6px;margin-top:12px}
+.bt{padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--fm);border:1px solid var(--bd);background:var(--b3);color:var(--t2);transition:all .15s}
+.bt:hover{border-color:var(--ac);color:var(--ac)}.bt.danger:hover{border-color:var(--red);color:var(--red)}
+.sbw{position:relative}
+.si{width:100%;padding:13px 16px 13px 42px;background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);color:var(--t);font-family:var(--fm);font-size:14px;outline:none;transition:border-color .2s}
+.si:focus{border-color:var(--ac)}.sic{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--t2);font-size:15px}
+.srs{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.sri{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:border-color .15s}
+.sri:hover{border-color:var(--ac)}.se{text-align:center;color:var(--t3);padding:40px;font-size:13px}
+.rl{display:flex;flex-direction:column;gap:8px}
+.ri{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.rin{font-family:var(--fh);font-size:14px;font-weight:700;margin-bottom:3px}.rid{font-size:11px;color:var(--t2)}
+.bpr{width:32px;height:32px;border-radius:50%;background:var(--b3);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:all .15s;color:var(--t2)}
+.bpr:hover{background:var(--ac);border-color:var(--ac);color:#fff}
+.bdr{width:32px;height:32px;border-radius:50%;background:var(--b3);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:all .15s;color:var(--t2)}
+.bdr:hover{background:rgba(192,57,43,.2);border-color:var(--red);color:var(--red)}
+.lf .sv2{min-height:340px}
+.mb{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;display:none}
+.mo{background:var(--b2);border:1px solid var(--bd);border-radius:12px;padding:28px;width:420px;max-width:90vw}
+.mti{font-family:var(--fh);font-size:18px;font-weight:800;margin-bottom:20px}
+.mac{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.bc{padding:9px 18px;background:var(--b3);border:1px solid var(--bd);border-radius:8px;color:var(--t);font-family:var(--fm);font-size:13px;cursor:pointer;transition:background .15s}
+.bc:hover{background:#2e3135}
+.bco{padding:9px 18px;background:var(--ac);border:none;border-radius:8px;color:#fff;font-family:var(--fm);font-size:13px;cursor:pointer;transition:background .15s}
+.bco:hover{background:var(--ac2)}
+.recopt{cursor:pointer;padding:8px 10px;border-radius:7px;border:1px solid var(--bd);display:flex;align-items:center;gap:10px;transition:border-color .15s}
+.recopt:hover{border-color:var(--ac)}.recopt.selected{border-color:var(--ac);background:rgba(59,125,233,.08)}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--b3);border:1px solid var(--bd);border-radius:10px;padding:12px 18px;font-size:13px;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;max-width:300px}
+#toast.show{opacity:1;transform:translateY(0)}#toast.success{border-color:var(--grn);color:var(--grn)}#toast.error{border-color:var(--red);color:#e74c3c}
+.wde{font-size:48px;margin-bottom:12px}.wdn{font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px}.wdr{font-size:12px;color:var(--t2);margin-bottom:20px}
+.wdno{background:var(--b3);border-radius:8px;padding:12px;font-size:13px;line-height:1.6;color:var(--t2);min-height:80px}
+.wdno[contenteditable=true]{outline:1px solid var(--ac);color:var(--t)}
+.av{height:32px;display:flex;align-items:center;gap:2px;margin-top:8px}
+.vb{width:3px;background:var(--ac);border-radius:2px;min-height:3px;animation:viz .6s ease-in-out infinite alternate;opacity:.6}
+@keyframes viz{to{height:90%}}
+.ph{background:var(--b2);border:1px solid var(--bd);border-radius:var(--r);padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.pht{font-family:var(--fh);font-size:18px;font-weight:800}
+.phu{font-size:12px;color:var(--t2);display:flex;align-items:center;gap:8px}
+.ua{width:28px;height:28px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:var(--fh);color:#fff}
+.nr{text-align:center;color:var(--t3);padding:40px 20px;font-size:13px;line-height:2}
+.rpl{background:var(--b3);border-radius:6px;padding:6px 10px;font-size:11px;border:none;color:var(--t2);cursor:pointer;font-family:var(--fm)}
+.rpl:hover{color:var(--t)}
+</style></head><body>
 
-  <script>
-    fetch('/api/health')
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById('status').innerHTML =
-          `✓ Server is ${data.status} — uptime ${data.uptime}`;
-      })
-      .catch(() => {
-        document.getElementById('status').textContent = '✗ Could not reach server';
-        document.getElementById('status').style.background = '#fef2f2';
-        document.getElementById('status').style.borderColor = '#fca5a5';
-      });
-  </script>
-</body>
-</html>
+<div id="auth-page"><div class="aw">
+  <div class="alo">* ExtraTranslational</div>
+  <div class="at">
+    <div class="atb active" onclick="switchTab('login')">Login</div>
+    <div class="atb" onclick="switchTab('signup')">Sign Up</div>
+  </div>
+  <div id="lf" class="af">
+    <div class="fg"><label>Username</label><input id="lu" placeholder="your_username" autocomplete="username"></div>
+    <div class="fg"><label>Password</label><input type="password" id="lp" placeholder="password" autocomplete="current-password"></div>
+    <div class="ae" id="le"></div>
+    <button class="ab" onclick="doLogin()">Login</button>
+    <p class="adc">Demo: Sign Up first, then login.</p>
+  </div>
+  <div id="sf" class="af" style="display:none">
+    <div class="fg"><label>Username</label><input id="su" placeholder="choose_a_username" autocomplete="username"></div>
+    <div class="fg"><label>Password</label><input type="password" id="sp" placeholder="min 6 chars" autocomplete="new-password"></div>
+    <div class="ae" id="se"></div>
+    <button class="ab" onclick="doSignup()">Create Account</button>
+  </div>
+</div></div>
+
+<div id="app-page"><div class="ai">
+  <nav class="sb">
+    <div class="sbl">* ET</div>
+    <div class="ni active" onclick="nav('dashboard')" id="nav-dashboard"><span class="nic">+</span> Dashboard</div>
+    <div class="ni" onclick="nav('livestream')" id="nav-livestream"><span class="nic">o</span> Live stream</div>
+    <div class="ni" onclick="nav('vocabulary')" id="nav-vocabulary"><span class="nic">#</span> Vocabulary</div>
+    <div class="ni" onclick="nav('search')" id="nav-search"><span class="nic">@</span> Search</div>
+    <div class="ni" onclick="nav('recordings')" id="nav-recordings"><span class="nic">></span> Recordings</div>
+    <div class="sbb"><div class="ni" onclick="doLogout()"><span class="nic">-></span> Logout</div></div>
+  </nav>
+  <div class="main">
+    <div class="ph"><div class="pht" id="ptitle">Dashboard</div><div class="phu"><span id="huser">user</span><div class="ua" id="uavt">U</div></div></div>
+
+    <div class="view active" id="view-dashboard">
+      <div class="sr">
+        <div class="sc"><div class="sl">Words</div><div class="sv" id="sw">0</div></div>
+        <div class="sc"><div class="sl">Recordings</div><div class="sv" id="srec">0</div></div>
+        <div class="sc"><div class="sl">Users</div><div class="sv" id="sus">1</div></div>
+      </div>
+      <div class="pr">
+        <div class="pn">
+          <div class="pt">o Live stream</div>
+          <div class="sv2" id="svd"><video id="vd" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><div class="sof" id="sofd"><span class="dot"></span> Offline</div><div class="sli" id="sld">LIVE</div></div>
+          <div class="sc2"><button class="br" id="brd" onclick="toggleRec('d')">o Record</button><button class="bs" onclick="snap('d')">+ Snapshot</button></div>
+        </div>
+        <div class="pn"><div class="pt">o Recent words</div><div id="rwl"><div class="se">No words yet.</div></div></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-livestream">
+      <div class="pn lf">
+        <div class="pt">o Live stream</div>
+        <div class="sv2" id="svl"><video id="vl" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><div class="sof" id="sofl"><span class="dot"></span> Offline</div><div class="sli" id="sll">LIVE</div></div>
+        <div class="av" id="av" style="display:none"><span style="font-size:11px;color:var(--t2);margin-right:8px">Audio</span></div>
+        <div style="margin-top:14px;display:flex;gap:10px"><button class="br" id="brl" onclick="toggleRec('l')">o Record</button><button class="bs" onclick="snap('l')">+ Snapshot</button></div>
+        <div id="snapr" style="margin-top:14px;display:none"><div style="font-size:11px;color:var(--t2);margin-bottom:6px;text-transform:uppercase">Last Snapshot</div><img id="simg" style="width:100%;border-radius:8px;border:1px solid var(--bd)" src="" alt="snapshot"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-vocabulary">
+      <div class="pn" style="flex:1">
+        <div class="vh"><div class="pt" style="margin:0"># Vocabulary</div><button class="ba" onclick="openAdd()">+ Add Word</button></div>
+        <div style="height:12px"></div>
+        <div class="vg" id="vgrid"><div class="se" style="grid-column:1/-1">No words yet.</div></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-search">
+      <div class="pn" style="flex:1">
+        <div class="pt">@ Search</div>
+        <div class="sbw"><span class="sic">@</span><input class="si" type="text" placeholder="Search..." id="sinp" oninput="doSearch()"></div>
+        <div class="srs" id="sres"><div class="se">Type to search.</div></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-recordings">
+      <div class="pn" style="flex:1">
+        <div class="pt">> Recordings</div>
+        <div class="rl" id="recl"><div class="nr">No recordings yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- Add Word Modal -->
+<div class="mb" id="maw"><div class="mo">
+  <div class="mti">Add New Word</div>
+  <div class="fg" style="margin-bottom:14px">
+    <label>Word / Label</label>
+    <input id="nwi" class="mi" placeholder="e.g. apple (or Chinese word)">
+  </div>
+  <div class="fg" style="margin-bottom:14px">
+    <label>Pick a Recording</label>
+    <div id="recpick" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin-top:4px;padding-right:2px">
+      <div style="color:var(--t2);font-size:12px;padding:8px 0">No recordings yet. Go record something first.</div>
+    </div>
+  </div>
+  <div class="fg">
+    <label>Notes (optional)</label>
+    <input id="nwn" class="mi" placeholder="e.g. pronunciation tips...">
+  </div>
+  <div class="mac">
+    <button class="bc" onclick="cm('maw')">Cancel</button>
+    <button class="bco" onclick="addWord()">Add Word</button>
+  </div>
+</div></div>
+
+<!-- Word Detail Modal -->
+<div class="mb" id="mwd"><div class="mo">
+  <div style="text-align:center">
+    <div class="wde" id="dem">></div>
+    <div class="wdn" id="dname"></div>
+    <div class="wdr" id="drec"></div>
+  </div>
+  <div style="font-size:11px;color:var(--t2);text-transform:uppercase;margin-bottom:8px">Notes</div>
+  <div class="wdno" id="dnotes" contenteditable="true"></div>
+  <div class="mac">
+    <button class="bc" onclick="cm('mwd')">Close</button>
+    <button class="bc" onclick="playWordAudio()">&#9654; Play Audio</button>
+    <button class="bco" onclick="saveDetail()">Save Notes</button>
+  </div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+const DB={
+  gu:()=>JSON.parse(localStorage.getItem('u')||'{}'),
+  su:u=>localStorage.setItem('u',JSON.stringify(u)),
+  gs:()=>localStorage.getItem('s'),
+  ss:u=>localStorage.setItem('s',u),
+  cs:()=>localStorage.removeItem('s'),
+  gw:u=>JSON.parse(localStorage.getItem('w_'+u)||'[]'),
+  sw:(u,w)=>localStorage.setItem('w_'+u,JSON.stringify(w)),
+  gr:u=>JSON.parse(localStorage.getItem('r_'+u)||'[]'),
+  sr:(u,r)=>localStorage.setItem('r_'+u,JSON.stringify(r))
+};
+
+let cu=null,words=[],recs=[],isRec=false,recStart=null,detId=null,selRecId=null,wcStream=null,mr=null,chunks=[],blobUrl=null;
+const g=id=>document.getElementById(id);
+const tc=['#3b7de9','#27ae60','#d4a017','#7c5cbf','#1a9d8a','#c0392b','#2980b9','#8e44ad'];
+
+function switchTab(t){
+  document.querySelectorAll('.atb').forEach((x,i)=>x.classList.toggle('active',(i===0)===(t==='login')));
+  g('lf').style.display=t==='login'?'flex':'none';
+  g('sf').style.display=t==='signup'?'flex':'none';
+}
+function aerr(id,m){const e=g(id);e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',4000)}
+function doLogin(){
+  const u=g('lu').value.trim(),p=g('lp').value;
+  if(!u||!p)return aerr('le','Fill all fields.');
+  const us=DB.gu();if(!us[u]||us[u].p!==btoa(p))return aerr('le','Invalid credentials.');
+  DB.ss(u);loadApp(u);
+}
+function doSignup(){
+  const u=g('su').value.trim(),p=g('sp').value;
+  if(!u||!p)return aerr('se','Fill all fields.');
+  if(p.length<6)return aerr('se','Password min 6 chars.');
+  if(!/^[a-zA-Z0-9_]+$/.test(u))return aerr('se','Username: letters/numbers/underscores only.');
+  const us=DB.gu();if(us[u])return aerr('se','Username taken.');
+  us[u]={p:btoa(p),c:Date.now()};DB.su(us);DB.ss(u);loadApp(u);
+}
+function doLogout(){stopCam();if(isRec)stopRec();DB.cs();cu=null;g('app-page').style.display='none';g('auth-page').style.display='flex';}
+function loadApp(u){
+  cu=u;words=DB.gw(u);recs=DB.gr(u);
+  g('auth-page').style.display='none';g('app-page').style.display='flex';
+  g('huser').textContent=u;g('uavt').textContent=u[0].toUpperCase();
+  nav('dashboard');stats();
+}
+function stats(){g('sw').textContent=words.length;g('srec').textContent=recs.length;g('sus').textContent=Object.keys(DB.gu()).length;}
+function nav(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
+  g('view-'+v).classList.add('active');g('nav-'+v).classList.add('active');
+  g('ptitle').textContent={dashboard:'Dashboard',livestream:'Live stream',vocabulary:'Vocabulary',search:'Search',recordings:'Recordings'}[v];
+  if(v==='dashboard'){renderRecent();stats();}
+  if(v==='vocabulary')renderGrid();
+  if(v==='recordings')renderRecs();
+  if(v==='search'){g('sinp').value='';renderSearch('');}
+}
+function showLive(on){
+  ['d','l'].forEach(id=>{
+    const o=g('sof'+id),l=g('sl'+id);
+    if(o)o.style.display=on?'none':'flex';
+    if(l)l.style.display=on?'block':'none';
+  });
+}
+async function startCam(){
+  if(wcStream)return;
+  try{
+    wcStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    ['d','l'].forEach(id=>{const v=g('v'+id);if(v){v.srcObject=wcStream;v.style.display='block';}});
+    showLive(true);
+  }catch(e){toast('Camera denied: '+e.message,'error');wcStream=null;}
+}
+function stopCam(){
+  if(wcStream){wcStream.getTracks().forEach(t=>t.stop());wcStream=null;}
+  ['d','l'].forEach(id=>{const v=g('v'+id);if(v){v.srcObject=null;v.style.display='none';}});
+  showLive(false);
+}
+function toggleRec(ctx){isRec?stopRec():startRec(ctx);}
+async function startRec(ctx){
+  await startCam();if(!wcStream)return;
+  isRec=true;recStart=Date.now();chunks=[];
+  const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+  mr=new MediaRecorder(wcStream,mt?{mimeType:mt}:{});
+  mr.ondataavailable=e=>{if(e.data&&e.data.size>0)chunks.push(e.data);};
+  mr.onstop=finishRec;mr.start(200);
+  const av=g('av');
+  if(av){av.style.display='flex';for(let i=0;i<28;i++){const b=document.createElement('div');b.className='vb';b.style.cssText=`height:${Math.random()*20+4}px;animation-duration:${Math.random()*.4+.4}s;animation-delay:${Math.random()*.3}s`;av.appendChild(b);}}
+  ['d','l'].forEach(id=>{const b=g('br'+id);if(b){b.textContent='[] Stop';b.classList.add('recording');}});
+  toast('Recording started','success');
+}
+function stopRec(){
+  if(mr&&mr.state!=='inactive')mr.stop();isRec=false;
+  const av=g('av');if(av){av.style.display='none';av.innerHTML='<span style="font-size:11px;color:var(--t2);margin-right:8px">Audio</span>';}
+  ['d','l'].forEach(id=>{const b=g('br'+id);if(b){b.textContent='o Record';b.classList.remove('recording');}});
+}
+function finishRec(){
+  const dur=Math.round((Date.now()-recStart)/1000);
+  if(blobUrl)URL.revokeObjectURL(blobUrl);
+  const blob=new Blob(chunks,{type:chunks[0]?.type||'video/webm'});
+  blobUrl=URL.createObjectURL(blob);
+  const r={id:'rec_'+String(recs.length+1).padStart(3,'0'),ts:Date.now(),dur,blobUrl};
+  recs.unshift(r);DB.sr(cu,recs);stats();toast('Saved: '+r.id,'success');
+}
+function snap(ctx){
+  const v=g('v'+ctx);
+  if(!v||v.style.display==='none'||!wcStream)return toast('Start camera first','error');
+  const c=document.createElement('canvas');c.width=v.videoWidth||640;c.height=v.videoHeight||480;
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  const r=g('snapr'),img=g('simg');if(r&&img){img.src=c.toDataURL('image/jpeg',.92);r.style.display='block';}
+  toast('Snapshot!','success');
+}
+function hc(w){let h=0;for(let c of w)h=(h*31+c.charCodeAt(0))&0xFFFF;return tc[h%tc.length];}
+function ta(ts){const s=Math.floor((Date.now()-ts)/1e3);return s<60?s+'s ago':s<3600?Math.floor(s/60)+'m ago':s<86400?Math.floor(s/3600)+'h ago':Math.floor(s/86400)+'d ago';}
+function fd(s){return!s?'0s':s<60?s+'s':Math.floor(s/60)+'m '+(s%60)+'s';}
+
+function openAdd(){
+  g('nwi').value='';g('nwn').value='';selRecId=null;
+  const rp=g('recpick');
+  if(!recs.length){
+    rp.innerHTML='<div style="color:var(--t2);font-size:12px;padding:8px 0">No recordings yet. Go record something first.</div>';
+  } else {
+    rp.innerHTML=recs.map(r=>`
+      <div class="recopt" id="ropt_${r.id}" onclick="selRec('${r.id}')">
+        <div style="width:32px;height:32px;border-radius:6px;background:var(--b3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:var(--t2)">></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;font-family:var(--fh)">${r.id}</div>
+          <div style="font-size:11px;color:var(--t2)">${new Date(r.ts).toLocaleString()} &mdash; ${fd(r.dur)}</div>
+        </div>
+        <button class="rpl" onclick="event.stopPropagation();playRec('${r.blobUrl}')">&#9654; Play</button>
+      </div>`).join('');
+  }
+  g('maw').style.display='flex';
+  setTimeout(()=>g('nwi').focus(),50);
+}
+
+function selRec(id){
+  selRecId=id;
+  document.querySelectorAll('.recopt').forEach(x=>x.classList.remove('selected'));
+  const el=g('ropt_'+id);
+  if(el)el.classList.add('selected');
+}
+
+function playRec(url){
+  if(!url)return toast('No audio available','error');
+  new Audio(url).play();
+}
+
+function addWord(){
+  const word=g('nwi').value.trim();
+  if(!word)return toast('Enter a word or label','error');
+  if(!selRecId)return toast('Pick a recording first','error');
+  const notes=g('nwn').value.trim();
+  const rec=recs.find(r=>r.id===selRecId);
+  const w={id:'w_'+Date.now(),word,notes,ts:Date.now(),recId:selRecId,blobUrl:rec?.blobUrl||null};
+  words.unshift(w);DB.sw(cu,words);stats();
+  selRecId=null;cm('maw');renderGrid();renderRecent();
+  toast('Added: '+word,'success');
+}
+
+function renderRecent(){
+  const l=g('rwl');if(!words.length){l.innerHTML='<div class="se">No words yet.</div>';return;}
+  l.innerHTML=[...words].sort((a,b)=>b.ts-a.ts).slice(0,4).map(w=>`
+    <div class="wi" onclick="openDetail('${w.id}')">
+      <div class="wt" style="background:${hc(w.word)}">></div>
+      <div style="flex:1"><div class="wn">${w.word}</div><div class="wm">${ta(w.ts)} &mdash; ${w.recId||'-'}</div></div>
+      <div class="wp" onclick="event.stopPropagation();playWordAudioById('${w.id}')">&#9654;</div>
+    </div>`).join('');
+}
+
+function renderGrid(){
+  const gr=g('vgrid');if(!words.length){gr.innerHTML='<div class="se" style="grid-column:1/-1">No words yet.</div>';return;}
+  gr.innerHTML=[...words].sort((a,b)=>b.ts-a.ts).map(w=>`
+    <div class="vc" onclick="openDetail('${w.id}')">
+      <div class="vct" style="background:${hc(w.word)}">></div>
+      <div class="vcw">${w.word}</div>
+      <div class="vcr">${w.recId||'No rec'} &mdash; ${ta(w.ts)}</div>
+      <div class="vca" onclick="event.stopPropagation()">
+        <button class="bt" onclick="playWordAudioById('${w.id}')">&#9654; Play</button>
+        <button class="bt danger" onclick="delWord('${w.id}')">X Del</button>
+      </div>
+    </div>`).join('');
+}
+
+function delWord(id){words=words.filter(w=>w.id!==id);DB.sw(cu,words);stats();renderGrid();renderRecent();toast('Deleted','');}
+
+function openDetail(id){
+  const w=words.find(x=>x.id===id);if(!w)return;detId=id;
+  g('dem').textContent='>';
+  g('dname').textContent=w.word;
+  g('drec').textContent=(w.recId||'No recording')+' &mdash; '+ta(w.ts);
+  g('dnotes').textContent=w.notes||'';
+  g('mwd').style.display='flex';
+}
+
+function saveDetail(){
+  const w=words.find(x=>x.id===detId);if(!w)return;
+  w.notes=g('dnotes').textContent.trim();DB.sw(cu,words);cm('mwd');toast('Saved','success');
+}
+
+function playWordAudio(){
+  playWordAudioById(detId);
+}
+
+function playWordAudioById(id){
+  const w=words.find(x=>x.id===id);
+  if(!w||!w.blobUrl)return toast('No audio linked to this word','error');
+  new Audio(w.blobUrl).play();
+  toast('Playing: '+w.word,'');
+}
+
+function renderRecs(){
+  const l=g('recl');if(!recs.length){l.innerHTML='<div class="nr">No recordings yet.</div>';return;}
+  l.innerHTML=recs.map(r=>`
+    <div class="ri">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="color:var(--ac);font-size:20px;flex-shrink:0">O</div>
+        <div style="flex:1">
+          <div class="rin">${r.id}</div>
+          <div class="rid">${new Date(r.ts).toLocaleString()} &mdash; ${fd(r.dur)}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          ${r.blobUrl?`<a href="${r.blobUrl}" download="${r.id}.webm" style="text-decoration:none"><div class="bpr" title="Download">v</div></a>`:''}
+          <div class="bdr" onclick="delRec('${r.id}')">X</div>
+        </div>
+      </div>
+      ${r.blobUrl?`<video src="${r.blobUrl}" controls style="width:100%;border-radius:8px;border:1px solid var(--bd);background:#000;max-height:220px"></video>`:''}
+    </div>`).join('');
+}
+
+function delRec(id){recs=recs.filter(r=>r.id!==id);DB.sr(cu,recs);stats();renderRecs();toast('Deleted','');}
+
+function doSearch(){renderSearch(g('sinp').value.trim().toLowerCase());}
+function renderSearch(q){
+  const r=g('sres');if(!q){r.innerHTML='<div class="se">Type to search.</div>';return;}
+  const all=[
+    ...words.filter(w=>w.word.toLowerCase().includes(q)||(w.notes||'').toLowerCase().includes(q))
+      .map(w=>({type:'word',label:w.word,sub:(w.notes||'No notes')+' &mdash; '+ta(w.ts),id:w.id,col:hc(w.word)})),
+    ...recs.filter(x=>x.id.toLowerCase().includes(q))
+      .map(x=>({type:'rec',label:x.id,sub:new Date(x.ts).toLocaleString()+' &mdash; '+fd(x.dur),id:x.id,col:'#3b7de9'}))
+  ];
+  if(!all.length){r.innerHTML='<div class="se">No results.</div>';return;}
+  r.innerHTML=all.map(i=>`
+    <div class="sri" onclick="${i.type==='word'?`openDetail('${i.id}')`:``}">
+      <div class="wt" style="background:${i.col};width:38px;height:38px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">></div>
+      <div style="flex:1"><div class="wn">${i.label}</div><div class="wm">${i.sub}</div></div>
+      <div style="font-size:10px;color:var(--t3);text-transform:uppercase">${i.type}</div>
+    </div>`).join('');
+}
+
+function cm(id){g(id).style.display='none';}
+function toast(m,t){const x=g('toast');x.textContent=m;x.className='show'+(t?' '+t:'');clearTimeout(x._t);x._t=setTimeout(()=>x.className='',3000);}
+
+document.querySelectorAll('.mb').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.style.display='none';}));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    if(g('lf')&&g('lf').style.display!=='none')doLogin();
+    else if(g('sf')&&g('sf').style.display!=='none')doSignup();
+    if(g('maw').style.display==='flex')addWord();
+    if(g('mwd').style.display==='flex')saveDetail();
+  }
+  if(e.key==='Escape')document.querySelectorAll('.mb').forEach(b=>b.style.display='none');
+});
+window.addEventListener('load',()=>{
+  const s=DB.gs();if(s&&DB.gu()[s])loadApp(s);
+});
+</script>
+</body></html>
