@@ -123,6 +123,21 @@
 .tr-item .heard{font-family:var(--fh);font-size:14px;font-weight:700;color:var(--ac)}
 .tr-item .lang{font-size:10px;color:var(--t3);text-transform:uppercase;margin-left:auto}
 .tr-empty{color:var(--t3);font-size:12px;padding:8px 0}
+.np-area{width:100%;min-height:240px;flex:1;background:var(--b3);border:1px solid var(--bd);border-radius:8px;color:var(--t);font-family:var(--fm);font-size:15px;line-height:1.5;padding:14px 16px;outline:none;resize:vertical}
+.np-area:focus{border-color:var(--ac)}
+.np-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.np-cands{margin-top:8px;font-size:12px;color:var(--t2);min-height:18px}
+.np-cands .npc,.np-cands .npc-near,.np-cands .npc-win{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--b3);border:1px solid var(--bd);color:var(--t2)}
+.np-cands .npc-near{color:var(--t);border-color:var(--bd)}
+.np-cands .npc-win{color:#fff;background:var(--ac);border-color:var(--ac)}
+.np-cands .npv{font-size:9px;opacity:.6;margin-left:4px;text-transform:uppercase;letter-spacing:.5px}
+.np-stat{font-size:12px;color:var(--t2);display:flex;align-items:center;gap:8px}
+.np-stat .ldot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--t3)}
+.np-stat.listening .ldot{background:var(--red);animation:pulse 1.4s infinite}
+.np-stat.captured .ldot{background:var(--grn)}
+.np-meta{font-size:11px;color:var(--t3);margin-top:6px}
+.np-slider{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2)}
+.np-slider input{accent-color:var(--ac)}
 </style></head><body>
 
 <div id="auth-page"><div class="aw">
@@ -152,6 +167,7 @@
     <div class="ni active" onclick="nav('dashboard')" id="nav-dashboard"><span class="nic">+</span> Dashboard</div>
     <div class="ni" onclick="nav('livestream')" id="nav-livestream"><span class="nic">o</span> Live stream</div>
     <div class="ni" onclick="nav('translator')" id="nav-translator"><span class="nic">~</span> Translator</div>
+    <div class="ni" onclick="nav('notepad')" id="nav-notepad"><span class="nic">&amp;</span> Notepad</div>
     <div class="ni" onclick="nav('vocabulary')" id="nav-vocabulary"><span class="nic">#</span> Vocabulary</div>
     <div class="ni" onclick="nav('search')" id="nav-search"><span class="nic">@</span> Search</div>
     <div class="ni" onclick="nav('recordings')" id="nav-recordings"><span class="nic">></span> Recordings</div>
@@ -228,7 +244,10 @@
           <label class="tr-toggle">
             <input type="checkbox" id="trAuto" checked> Auto-save matches
           </label>
-          <button class="ba" onclick="saveTranslatorMapping()" id="trSaveBtn">+ Save mapping</button>
+          <label class="tr-toggle" id="trRetrainLbl" style="display:none">
+            <input type="checkbox" id="trRetrain"> Re-train mode (add samples)
+          </label>
+          <button class="ba" onclick="void saveTranslatorMapping()" id="trSaveBtn">+ Save mapping</button>
           <button class="br" onclick="toggleAlienRecord()" id="trAlienRec" style="display:none;flex:0 0 auto;padding:10px 14px">o Record sound</button>
           <button class="bs" onclick="clearTranslatorLock(false)">Next object</button>
           <button class="bs" onclick="clearTranslatorHeard()">Clear heard</button>
@@ -236,6 +255,29 @@
 
         <div class="tr-cap" style="margin-top:18px">Recent mappings</div>
         <div class="tr-list" id="trList"><div class="tr-empty">No mappings yet. Aim camera at an object and say its name in the chosen language.</div></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-notepad">
+      <div class="pn" style="flex:1">
+        <div class="vh">
+          <div class="pt" style="margin:0">&amp; Notepad &mdash; speak in your sound language</div>
+          <div class="np-stat" id="npStat"><span class="ldot"></span><span id="npStatText">Stopped</span></div>
+        </div>
+        <textarea class="np-area" id="npArea" placeholder="Press Listen, then say words you've taught the translator. Recognized class names appear here..."></textarea>
+        <div class="np-bar">
+          <button class="br" id="npListenBtn" onclick="toggleNotepadListen()">o Listen</button>
+          <button class="bs" onclick="recordOneNotepadWord()">+ Record one word</button>
+          <button class="bs" onclick="clearNotepad()">Clear</button>
+          <button class="bs" onclick="copyNotepad()">Copy</button>
+          <label class="np-slider">Match
+            <input type="range" id="npThresh" min="40" max="98" step="1" value="72" oninput="updateNotepadThresh()">
+            <span id="npThreshVal">72%</span>
+          </label>
+          <label class="np-slider"><input type="checkbox" id="npShowQ" checked> Show <code>[?]</code> when no match</label>
+        </div>
+        <div class="np-meta" id="npMeta">Library: 0 sounds learned. Teach more in Translator → Sound match (alien).</div>
+        <div class="np-cands" id="npCands"></div>
       </div>
     </div>
 
@@ -317,11 +359,30 @@ const DB={
   gr:u=>JSON.parse(localStorage.getItem('r_'+u)||'[]'),
   sr:(u,r)=>localStorage.setItem('r_'+u,JSON.stringify(r))
 };
+function blobToDataUrl(blob){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>res(fr.result);
+    fr.onerror=()=>rej(fr.error||new Error('read'));
+    fr.readAsDataURL(blob);
+  });
+}
+async function mediaUrlToDataUrl(url){
+  if(!url)return null;
+  if(url.startsWith('data:'))return url;
+  if(/^https?:/i.test(url))return url;
+  try{
+    const r=await fetch(url);
+    const b=await r.blob();
+    return await blobToDataUrl(b);
+  }catch(e){console.warn('mediaUrlToDataUrl:',e);return null;}
+}
+function wordMediaUrl(w){const u=w&&(w.audioUrl||w.blobUrl);return u||null;}
 
 let cu=null,words=[],recs=[],isRec=false,recStart=null,detId=null,selRecId=null,wcStream=null,mr=null,chunks=[],blobUrl=null;
 let detModel=null,detModelLoading=null,detRAF=null,detLastTs=0,detPredictions=[];
 const DET_INTERVAL_MS=180,DET_MIN_SCORE=0.55;
-const DET_IGNORE=new Set(['person']);
+const DET_IGNORE=new Set();
 window.detLatestClasses=()=>[...new Set(detPredictions.map(p=>p.class))];
 
 // Common spoken aliases / plurals -> canonical COCO class names
@@ -351,11 +412,11 @@ const TR_MAX_UTTERANCE_MS=20000;
 
 // ===== Alien (sound-match) mode state =====
 let translatorMode='speech';
-let alienCtx=null,alienAnalyser=null,alienSource=null,alienSampleRAF=null;
+let alienCtx=null,alienAnalyser=null,alienSource=null,alienSampleRAF=null,alienFilter=null;
 let alienActive=false,alienRecording=false,alienFrames=[],alienRecordStartedAt=0,alienAutoStopT=null;
 const ALIEN_FFT_SIZE=512,ALIEN_BANDS=32;
 const ALIEN_MIN_FRAMES=8;
-const ALIEN_SIM_THRESHOLD=0.9;
+const ALIEN_SIM_THRESHOLD=0.78;
 const ALIEN_MAX_RECORD_MS=20000;
 const g=id=>document.getElementById(id);
 const tc=['#3b7de9','#27ae60','#d4a017','#7c5cbf','#1a9d8a','#c0392b','#2980b9','#8e44ad'];
@@ -380,25 +441,30 @@ function doSignup(){
   const us=DB.gu();if(us[u])return aerr('se','Username taken.');
   us[u]={p:btoa(p),c:Date.now()};DB.su(us);DB.ss(u);loadApp(u);
 }
-function doLogout(){if(isRec)stopRec();stopSpeechRecognition();translatorActive=false;stopTranslatorRecognition();stopAlienRecord();stopAlienListener();stopCam();DB.cs();cu=null;g('app-page').style.display='none';g('auth-page').style.display='flex';}
+function doLogout(){if(isRec)stopRec();stopSpeechRecognition();translatorActive=false;stopTranslatorRecognition();stopAlienRecord();stopAlienListener();stopNotepadMode();stopCam();DB.cs();cu=null;g('app-page').style.display='none';g('auth-page').style.display='flex';}
 function loadApp(u){
   cu=u;words=DB.gw(u);recs=DB.gr(u);
   g('auth-page').style.display='none';g('app-page').style.display='flex';
   g('huser').textContent=u;g('uavt').textContent=u[0].toUpperCase();
   nav('dashboard');stats();
+  const staleMedia=o=>o&&((typeof o.blobUrl==='string'&&o.blobUrl.startsWith('blob:'))||(typeof o.audioUrl==='string'&&o.audioUrl.startsWith('blob:')));
+  if(words.some(staleMedia)||recs.some(staleMedia))
+    setTimeout(()=>toast('Some clips use old blob links that stop working after refresh. Re-record those items to restore playback.',''),1200);
 }
 function stats(){g('sw').textContent=words.length;g('srec').textContent=recs.length;g('sus').textContent=Object.keys(DB.gu()).length;}
 function nav(v){
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   g('view-'+v).classList.add('active');g('nav-'+v).classList.add('active');
-  g('ptitle').textContent={dashboard:'Dashboard',livestream:'Live stream',translator:'Translator',vocabulary:'Vocabulary',search:'Search',recordings:'Recordings'}[v];
+  g('ptitle').textContent={dashboard:'Dashboard',livestream:'Live stream',translator:'Translator',notepad:'Notepad',vocabulary:'Vocabulary',search:'Search',recordings:'Recordings'}[v];
   if(v!=='translator'&&translatorActive)stopTranslatorMode();
+  if(v!=='notepad'&&npActive)stopNotepadMode();
   if(v==='dashboard'){renderRecent();stats();}
   if(v==='vocabulary')renderGrid();
   if(v==='recordings')renderRecs();
   if(v==='search'){g('sinp').value='';renderSearch('');}
   if(v==='translator')startTranslatorMode();
+  if(v==='notepad')startNotepadMode();
 }
 function showLive(on){
   ['d','l','t'].forEach(id=>{
@@ -582,13 +648,15 @@ function stopRec(){
   ['d','l'].forEach(id=>{const b=g('br'+id);if(b){b.textContent='o Record';b.classList.remove('recording');}});
   stopSpeechRecognition();
 }
-function finishRec(){
+async function finishRec(){
   const dur=Math.round((Date.now()-recStart)/1000);
-  if(blobUrl)URL.revokeObjectURL(blobUrl);
   const blob=new Blob(chunks,{type:chunks[0]?.type||'video/webm'});
-  blobUrl=URL.createObjectURL(blob);
+  let stored=null;
+  try{stored=await blobToDataUrl(blob);}catch(e){console.warn('finishRec dataUrl:',e);}
+  if(blobUrl)URL.revokeObjectURL(blobUrl);
+  blobUrl=stored||URL.createObjectURL(blob);
   const matches=recMatches.slice();
-  const r={id:'rec_'+String(recs.length+1).padStart(3,'0'),ts:Date.now(),dur,blobUrl,matches};
+  const r={id:'rec_'+String(recs.length+1).padStart(3,'0'),ts:Date.now(),dur,blobUrl:stored||blobUrl,matches};
   recs.unshift(r);DB.sr(cu,recs);stats();
   if(matches.length){
     const summary=[...new Set(matches.map(m=>m.class))].join(', ');
@@ -654,8 +722,10 @@ function checkSpeechMatches(text){
 
 // ===== Translator Mode =====
 function translatorLang(){return (g('trLang')&&g('trLang').value)||'es-ES';}
+function isRetrainMode(){const el=g('trRetrain');return !!(el&&el.checked);}
 function savedTranslatorClassesForCurrentLang(){
   if(translatorMode==='sound'){
+    if(isRetrainMode())return new Set();
     return new Set(words.filter(w=>w.src==='translator-sound'&&w.label).map(w=>w.label));
   }
   const lang=translatorLang();
@@ -685,6 +755,7 @@ function startTranslatorMode(){
   const wrap=g('trLangWrap');if(wrap)wrap.style.display=translatorMode==='sound'?'none':'inline-flex';
   const recBtn=g('trAlienRec');if(recBtn)recBtn.style.display=translatorMode==='sound'?'inline-flex':'none';
   const auto=g('trAuto');if(auto){const lbl=auto.parentElement;if(lbl)lbl.style.display=translatorMode==='sound'?'none':'inline-flex';}
+  const rt=g('trRetrainLbl');if(rt)rt.style.display=translatorMode==='sound'?'inline-flex':'none';
   startCam().then(()=>{
     if(translatorMode==='speech')startTranslatorRecognition();
     else startAlienListener();
@@ -832,9 +903,9 @@ function updateTranslatorHeardUI(isInterim){
 function maybeAutoSaveTranslator(){
   if(!translatorLockedClass||!translatorLastHeard)return;
   if(Date.now()-translatorLastHeardAt>4000)return;
-  saveTranslatorMapping(true);
+  void saveTranslatorMapping(true);
 }
-function saveTranslatorMapping(silentIfDup){
+async function saveTranslatorMapping(silentIfDup){
   if(!translatorLockedClass){toast('Aim camera at an object first','error');return;}
   if(!translatorLastHeard){toast('Say the foreign word for it first','error');return;}
   const cls=translatorLockedClass;
@@ -850,16 +921,20 @@ function saveTranslatorMapping(silentIfDup){
   const snap=translatorPendingSnap;translatorPendingSnap=null;
   let recId=null,blobUrl=null,recType='';
   if(snap&&snap.url){
-    recId='rec_'+String(recs.length+1).padStart(3,'0');
-    blobUrl=snap.url;recType=snap.type||'video/webm';
-    const r={
-      id:recId,ts:Date.now(),dur:snap.dur||1,blobUrl,
-      type:recType,
-      src:'translator',
-      matches:[{class:cls,text:word,at:0}],
-      label:cls,word,lang
-    };
-    recs.unshift(r);DB.sr(cu,recs);
+    blobUrl=await mediaUrlToDataUrl(snap.url);
+    if(snap.url.startsWith('blob:')){try{URL.revokeObjectURL(snap.url);}catch(_){}}
+    if(blobUrl){
+      recId='rec_'+String(recs.length+1).padStart(3,'0');
+      recType=snap.type||'video/webm';
+      const r={
+        id:recId,ts:Date.now(),dur:snap.dur||1,blobUrl,
+        type:recType,
+        src:'translator',
+        matches:[{class:cls,text:word,at:0}],
+        label:cls,word,lang
+      };
+      recs.unshift(r);DB.sr(cu,recs);
+    } else toast('Could not save recording — try again','error');
   }
   const w={
     id:'w_'+Date.now(),
@@ -898,7 +973,7 @@ function renderTranslatorList(){
       <div class="arrow">&rarr;</div>
       <div class="heard">${heard}</div>
       <div class="lang">${lang}</div>
-      ${w.audioUrl?`<button class="wp" title="Play recording" onclick="playWordAudioById('${w.id}')">&#9654;</button>`:''}
+      ${(w.audioUrl||w.blobUrl)?`<button class="wp" title="Play recording" onclick="playWordAudioById('${w.id}')">&#9654;</button>`:''}
       <button class="bdr" title="Delete" onclick="delWord('${w.id}');renderTranslatorList();">X</button>
     </div>`;
   }).join('');
@@ -915,10 +990,13 @@ function startAlienListener(){
     const Ctx=window.AudioContext||window.webkitAudioContext;
     alienCtx=new Ctx();
     alienSource=alienCtx.createMediaStreamSource(stream);
+    alienFilter=alienCtx.createBiquadFilter();
+    alienFilter.type='highpass';alienFilter.frequency.value=120;alienFilter.Q.value=0.707;
     alienAnalyser=alienCtx.createAnalyser();
     alienAnalyser.fftSize=ALIEN_FFT_SIZE;
-    alienAnalyser.smoothingTimeConstant=0.4;
-    alienSource.connect(alienAnalyser);
+    alienAnalyser.smoothingTimeConstant=0.25;
+    alienSource.connect(alienFilter);
+    alienFilter.connect(alienAnalyser);
     if(alienCtx.state==='suspended')alienCtx.resume();
   }catch(e){console.warn('Alien analyser init failed:',e);stopAlienListener();return;}
   alienActive=true;alienFrames=[];
@@ -928,6 +1006,7 @@ function stopAlienListener(){
   stopAlienRecord();
   alienActive=false;
   if(alienSource){try{alienSource.disconnect();}catch(_){}alienSource=null;}
+  if(alienFilter){try{alienFilter.disconnect();}catch(_){}alienFilter=null;}
   if(alienAnalyser){try{alienAnalyser.disconnect();}catch(_){}alienAnalyser=null;}
   if(alienCtx){try{alienCtx.close();}catch(_){}alienCtx=null;}
   alienFrames=[];
@@ -958,9 +1037,11 @@ function startAlienRecord(){
     let sum=0;for(let i=0;i<td.length;i++){const v=(td[i]-128)/128;sum+=v*v;}
     const rms=Math.sqrt(sum/td.length);
     alienAnalyser.getByteFrequencyData(fd);
+    const sr=alienCtx?alienCtx.sampleRate:48000;
     const vec=downsampleToBands(fd,ALIEN_BANDS);
-    const ph=frameToPhoneme(td,fd,alienCtx?alienCtx.sampleRate:48000,ALIEN_FFT_SIZE,rms);
-    alienFrames.push({rms,vec,ph});
+    const mel=logMelBands(fd,sr,ALIEN_FFT_SIZE,NUM_MEL_BANDS);
+    const ph=frameToPhoneme(td,fd,sr,ALIEN_FFT_SIZE,rms);
+    alienFrames.push({rms,vec,mel,ph});
     const elapsed=(Date.now()-alienRecordStartedAt)/1000;
     translatorLastHeard='Recording... '+elapsed.toFixed(1)+'s';translatorLastHeardAt=Date.now();
     updateTranslatorHeardUI(true);
@@ -985,8 +1066,10 @@ async function stopAlienRecord(processResult){
   if(snap)setTranslatorPendingSnap(snap);
   if(!processResult){discardTranslatorPendingSnap();return;}
   const fp=computeFingerprint(frames);
+  const fp2=computeFingerprintV2(frames);
+  const seq3=computeMelSequenceV3(frames);
   const ipa=compactPhonemeSequence(frames.map(f=>f.ph));
-  handleAlienResult(fp,frames.length,ipa);
+  await handleAlienResult(fp,frames.length,ipa,fp2,seq3);
 }
 function setAlienRecordBtn(isRecording){
   const b=g('trAlienRec');if(!b)return;
@@ -1120,27 +1203,224 @@ function findBestAlienMatch(fp){
   }
   return {match:best,sim:bestSim};
 }
-function handleAlienResult(fp,frameCount,ipa){
-  if(!fp){
+
+// ---- v2 fingerprint: log-mel bands + time envelope, multi-sample matching ----
+const NUM_MEL_BANDS=24, ENV_BANDS=8, FP2_LOW_BANDS_TO_DROP=2;
+let _melFilterCache={key:'',filters:null};
+function _melFreq(hz){return 2595*Math.log10(1+hz/700);}
+function _melToHz(m){return 700*(Math.pow(10,m/2595)-1);}
+function getMelFilters(sampleRate,fftSize,numBands){
+  const key=sampleRate+'_'+fftSize+'_'+numBands;
+  if(_melFilterCache.key===key)return _melFilterCache.filters;
+  const lowMel=_melFreq(80),highMel=_melFreq(Math.min(sampleRate/2,8000));
+  const pts=[];
+  for(let i=0;i<numBands+2;i++)pts.push(_melToHz(lowMel+(highMel-lowMel)*i/(numBands+1)));
+  const halfFft=fftSize/2;
+  const bins=pts.map(hz=>Math.min(halfFft-1,Math.max(0,Math.floor(fftSize*hz/sampleRate))));
+  const filters=[];
+  for(let i=1;i<=numBands;i++){
+    const start=bins[i-1],peak=bins[i],end=Math.max(bins[i]+1,bins[i+1]);
+    filters.push({start,peak,end,denomL:Math.max(1,peak-start),denomR:Math.max(1,end-peak)});
+  }
+  _melFilterCache={key,filters};
+  return filters;
+}
+function logMelBands(fd,sampleRate,fftSize,numBands){
+  const filters=getMelFilters(sampleRate,fftSize,numBands);
+  const out=new Array(numBands);
+  for(let f=0;f<filters.length;f++){
+    const ft=filters[f];let s=0,wsum=0;
+    for(let k=ft.start;k<=ft.end&&k<fd.length;k++){
+      const w=k<ft.peak?(k-ft.start)/ft.denomL:(ft.end-k)/ft.denomR;
+      if(w<=0)continue;
+      s+=(fd[k]/255)*w;wsum+=w;
+    }
+    const e=wsum>0?s/wsum:0;
+    out[f]=Math.log(1e-3+e);
+  }
+  return out;
+}
+function computeFingerprintV2(frames){
+  if(!frames||frames.length<ALIEN_MIN_FRAMES)return null;
+  const sorted=[...frames].sort((a,b)=>b.rms-a.rms);
+  const top=sorted.slice(0,Math.max(8,Math.floor(frames.length*0.7))).filter(f=>Array.isArray(f.mel));
+  if(!top.length)return null;
+  const acc=new Float32Array(NUM_MEL_BANDS);
+  for(const f of top)for(let i=0;i<NUM_MEL_BANDS;i++)acc[i]+=f.mel[i];
+  for(let i=0;i<NUM_MEL_BANDS;i++)acc[i]/=top.length;
+  // Drop a few lowest mel bands (rumble/breath) to reduce nuisance variance
+  const useStart=FP2_LOW_BANDS_TO_DROP,specLen=NUM_MEL_BANDS-useStart;
+  const spec=new Float32Array(specLen);
+  for(let i=0;i<specLen;i++)spec[i]=acc[i+useStart];
+  // Cepstral mean subtraction (channel/loudness invariance)
+  let m=0;for(let i=0;i<specLen;i++)m+=spec[i];m/=specLen;
+  for(let i=0;i<specLen;i++)spec[i]-=m;
+  // L2 normalize
+  let n=0;for(let i=0;i<specLen;i++)n+=spec[i]*spec[i];
+  n=Math.sqrt(n)||1;
+  const specOut=new Array(specLen);
+  for(let i=0;i<specLen;i++)specOut[i]=spec[i]/n;
+  // Time envelope: bin frame RMS into ENV_BANDS buckets
+  const envAcc=new Float32Array(ENV_BANDS);
+  const cnt=new Uint32Array(ENV_BANDS);
+  for(let i=0;i<frames.length;i++){
+    const b=Math.min(ENV_BANDS-1,Math.floor(i*ENV_BANDS/frames.length));
+    envAcc[b]+=frames[i].rms;cnt[b]++;
+  }
+  for(let i=0;i<ENV_BANDS;i++)envAcc[i]/=Math.max(1,cnt[i]);
+  let en=0;for(let i=0;i<ENV_BANDS;i++)en+=envAcc[i]*envAcc[i];
+  en=Math.sqrt(en)||1;
+  const envOut=new Array(ENV_BANDS);
+  for(let i=0;i<ENV_BANDS;i++)envOut[i]=envAcc[i]/en;
+  return {spec:specOut,env:envOut,n:frames.length};
+}
+function fpSimV2(a,b){
+  if(!a||!b||!a.spec||!b.spec||a.spec.length!==b.spec.length)return -1;
+  const sSpec=cosSim(a.spec,b.spec);
+  const sEnv=(a.env&&b.env&&a.env.length===b.env.length)?cosSim(a.env,b.env):0;
+  return 0.78*sSpec+0.22*sEnv;
+}
+// Returns array of {label,id,sim,word}, sorted desc, considering all v2 samples per word.
+function rankAlienMatchesV2(fp){
+  const out=[];
+  for(const w of words){
+    if(w.src!=='translator-sound')continue;
+    let samples=[];
+    if(Array.isArray(w.fps2)&&w.fps2.length)samples=w.fps2;
+    else if(w.fp2)samples=[w.fp2];
+    else continue;
+    let best=-1;
+    for(const s of samples){const v=fpSimV2(fp,s);if(v>best)best=v;}
+    out.push({word:w,label:w.label||'?',id:w.id,sim:best});
+  }
+  out.sort((a,b)=>b.sim-a.sim);
+  return out;
+}
+function findBestAlienMatchV2(fp){
+  const r=rankAlienMatchesV2(fp);
+  if(!r.length)return {match:null,sim:-1,top:[]};
+  return {match:r[0].word,sim:r[0].sim,top:r.slice(0,3)};
+}
+// ---- v3 fingerprint: log-mel SPECTROGRAM + DTW similarity ----
+const FP3_FRAMES=24, FP3_DROP=FP2_LOW_BANDS_TO_DROP, FP3_BANDS=NUM_MEL_BANDS-FP3_DROP, FP3_BAND_W=6;
+function trimSilenceFrames(frames){
+  if(!frames||frames.length<3)return frames;
+  const sortedRms=frames.map(f=>f.rms).sort((a,b)=>a-b);
+  const med=sortedRms[sortedRms.length>>1]||0.01;
+  const floor=Math.max(0.012,med*0.4);
+  let s=0,e=frames.length-1;
+  while(s<e&&frames[s].rms<floor)s++;
+  while(e>s&&frames[e].rms<floor)e--;
+  const trimmed=frames.slice(s,e+1);
+  return trimmed.length>=ALIEN_MIN_FRAMES?trimmed:frames;
+}
+function computeMelSequenceV3(frames){
+  if(!frames||frames.length<ALIEN_MIN_FRAMES)return null;
+  const valid=frames.filter(f=>Array.isArray(f.mel));
+  if(valid.length<ALIEN_MIN_FRAMES)return null;
+  const trimmed=trimSilenceFrames(valid);
+  const N=trimmed.length;if(N<3)return null;
+  const seq=[];
+  for(let i=0;i<FP3_FRAMES;i++){
+    const src=Math.min(N-1,Math.floor(i*N/FP3_FRAMES));
+    const m=trimmed[src].mel;
+    const fr=new Array(FP3_BANDS);
+    for(let b=0;b<FP3_BANDS;b++)fr[b]=m[b+FP3_DROP];
+    seq.push(fr);
+  }
+  // Per-band cepstral mean subtraction across the sequence
+  const meanV=new Float32Array(FP3_BANDS);
+  for(const fr of seq)for(let b=0;b<FP3_BANDS;b++)meanV[b]+=fr[b];
+  for(let b=0;b<FP3_BANDS;b++)meanV[b]/=seq.length;
+  for(const fr of seq)for(let b=0;b<FP3_BANDS;b++)fr[b]-=meanV[b];
+  // Per-frame L2 normalize (so DTW on dot product == cosine sim)
+  for(const fr of seq){
+    let n=0;for(let b=0;b<FP3_BANDS;b++)n+=fr[b]*fr[b];
+    n=Math.sqrt(n)||1;
+    for(let b=0;b<FP3_BANDS;b++)fr[b]/=n;
+  }
+  // Quantize to 3 decimals to keep localStorage size reasonable
+  return seq.map(fr=>fr.map(v=>Math.round(v*1000)/1000));
+}
+function dtwSim(A,B){
+  if(!A||!B||!A.length||!B.length)return -1;
+  if(!A[0]||!B[0]||A[0].length!==B[0].length)return -1;
+  const m=A.length,n=B.length,W=FP3_BAND_W,D=A[0].length,N1=n+1;
+  const dp=new Float64Array((m+1)*N1);
+  dp.fill(Infinity);dp[0]=0;
+  for(let i=1;i<=m;i++){
+    const lo=Math.max(1,i-W),hi=Math.min(n,i+W);
+    const ai=A[i-1];
+    for(let j=lo;j<=hi;j++){
+      const bj=B[j-1];let dot=0;
+      for(let k=0;k<D;k++)dot+=ai[k]*bj[k];
+      const cost=1-dot;
+      const m1=dp[(i-1)*N1+j],m2=dp[i*N1+(j-1)],m3=dp[(i-1)*N1+(j-1)];
+      let best=m1;if(m2<best)best=m2;if(m3<best)best=m3;
+      dp[i*N1+j]=cost+best;
+    }
+  }
+  const total=dp[m*N1+n];
+  if(!isFinite(total))return -1;
+  const norm=total/Math.max(m,n);
+  return Math.max(0,Math.min(1,1-norm/2));
+}
+function hasV3Sample(w){return !!(w&&(w.seq3||(Array.isArray(w.seqs3)&&w.seqs3.length)));}
+function fpSimV3(seqQ,wordEntry,fp2Q){
+  const seqs=Array.isArray(wordEntry.seqs3)&&wordEntry.seqs3.length?wordEntry.seqs3:(wordEntry.seq3?[wordEntry.seq3]:null);
+  if(!seqs)return -1;
+  let bestDtw=-1;
+  for(const s of seqs){const v=dtwSim(seqQ,s);if(v>bestDtw)bestDtw=v;}
+  if(bestDtw<0)return -1;
+  let envSim=0;
+  const fp2Lib=wordEntry.fp2||(Array.isArray(wordEntry.fps2)&&wordEntry.fps2.length?wordEntry.fps2[0]:null);
+  if(fp2Q&&fp2Lib&&fp2Q.env&&fp2Lib.env&&fp2Q.env.length===fp2Lib.env.length){
+    envSim=cosSim(fp2Q.env,fp2Lib.env);
+  }
+  return 0.78*bestDtw+0.22*envSim;
+}
+// Unified entry: prefer v3 (DTW); fall back to v2 (mean spec); fall back to legacy v1.
+function findBestAlienMatchAny(fp,fp2,seqQ){
+  const out=[];
+  for(const w of words){
+    if(w.src!=='translator-sound')continue;
+    let sim=-1,via='';
+    if(seqQ&&hasV3Sample(w)){
+      const v=fpSimV3(seqQ,w,fp2);
+      if(v>=0){sim=v;via='v3';}
+    }
+    if(sim<0&&fp2){
+      const samples=Array.isArray(w.fps2)&&w.fps2.length?w.fps2:(w.fp2?[w.fp2]:null);
+      if(samples){
+        let best=-1;for(const s of samples){const v=fpSimV2(fp2,s);if(v>best)best=v;}
+        if(best>=0){sim=best;via='v2';}
+      }
+    }
+    if(sim<0&&fp&&Array.isArray(w.fp)){
+      sim=cosSim(fp,w.fp);via='v1';
+    }
+    if(sim>=0)out.push({word:w,label:w.label||'?',id:w.id,sim,via});
+  }
+  out.sort((a,b)=>b.sim-a.sim);
+  const top=out.slice(0,3);
+  const winner=top[0]||null;
+  return {match:winner?winner.word:null,sim:winner?winner.sim:-1,top};
+}
+async function handleAlienResult(fp,frameCount,ipa,fp2,seq3){
+  if(!fp&&!fp2&&!seq3){
     translatorLastHeard='';updateTranslatorHeardUI();
     if(frameCount<ALIEN_MIN_FRAMES)toast('Sound too short — try a longer utterance','error');
     return;
   }
   const ipaText=ipa||'';
-  const {match,sim}=findBestAlienMatch(fp);
+  const {match,sim}=findBestAlienMatchAny(fp,fp2,seq3);
   if(translatorLockedClass){
     const cls=translatorLockedClass;
     const existing=words.find(w=>w.src==='translator-sound'&&w.label===cls);
-    if(existing){
-      toast('Already learned: '+cls+' (/'+(existing.ipa||'?')+'/) — delete to relearn','');
-      discardTranslatorPendingSnap();clearTranslatorLock(true);
-      translatorLastHeard='';updateTranslatorHeardUI();
-      return;
-    }
     if(match&&sim>=ALIEN_SIM_THRESHOLD&&match.label!==cls){
       toast('Heads up: sound is '+(sim*100|0)+'% similar to "'+match.label+'"','');
     }
-    saveAlienMapping(cls,fp,ipaText);
+    await saveAlienMapping(cls,fp,ipaText,fp2,!!existing,seq3);
   } else {
     if(match&&sim>=ALIEN_SIM_THRESHOLD){
       translatorLastHeard='Recognized: '+match.label+' /'+(match.ipa||ipaText||'?')+'/ ('+(sim*100|0)+'%)';
@@ -1156,37 +1436,65 @@ function handleAlienResult(fp,frameCount,ipa){
     discardTranslatorPendingSnap();
   }
 }
-function saveAlienMapping(cls,fp,ipa){
+const FP2_MAX_SAMPLES=5;
+async function saveAlienMapping(cls,fp,ipa,fp2,appendToExisting,seq3){
   const snap=translatorPendingSnap;translatorPendingSnap=null;
   let recId=null,blobUrl=null;
   if(snap&&snap.url){
-    recId='rec_'+String(recs.length+1).padStart(3,'0');
-    blobUrl=snap.url;
-    const r={
-      id:recId,ts:Date.now(),dur:snap.dur||1,blobUrl,type:snap.type||'video/webm',
-      src:'translator-sound',
-      matches:[{class:cls,text:ipa?'/'+ipa+'/':'(alien sound)',at:0}],
-      label:cls,word:ipa?'/'+ipa+'/':'(sound)',lang:'sound',ipa:ipa||''
-    };
-    recs.unshift(r);DB.sr(cu,recs);
+    blobUrl=await mediaUrlToDataUrl(snap.url);
+    if(snap.url.startsWith('blob:')){try{URL.revokeObjectURL(snap.url);}catch(_){}}
+    if(blobUrl){
+      recId='rec_'+String(recs.length+1).padStart(3,'0');
+      const r={
+        id:recId,ts:Date.now(),dur:snap.dur||1,blobUrl,type:snap.type||'video/webm',
+        src:'translator-sound',
+        matches:[{class:cls,text:ipa?'/'+ipa+'/':'(alien sound)',at:0}],
+        label:cls,word:ipa?'/'+ipa+'/':'(sound)',lang:'sound',ipa:ipa||''
+      };
+      recs.unshift(r);DB.sr(cu,recs);
+    } else toast('Could not save video — mapping saved without recording','error');
   }
-  const w={
-    id:'w_'+Date.now(),
-    word:ipa?'/'+ipa+'/':'(sound)',
-    label:cls,
-    lang:'sound',
-    ipa:ipa||'',
-    notes:'translator-sound: '+cls+(ipa?' /'+ipa+'/':''),
-    ts:Date.now(),
-    recId,blobUrl,audioUrl:blobUrl,
-    fp,
-    src:'translator-sound'
-  };
-  words.unshift(w);DB.sw(cu,words);stats();renderTranslatorList();
+  const existing=appendToExisting?words.find(w=>w.src==='translator-sound'&&w.label===cls):null;
+  if(existing){
+    if(fp2){
+      if(!Array.isArray(existing.fps2))existing.fps2=existing.fp2?[existing.fp2]:[];
+      existing.fps2.unshift(fp2);
+      if(existing.fps2.length>FP2_MAX_SAMPLES)existing.fps2.length=FP2_MAX_SAMPLES;
+      existing.fp2=existing.fps2[0];
+    }
+    if(seq3){
+      if(!Array.isArray(existing.seqs3))existing.seqs3=existing.seq3?[existing.seq3]:[];
+      existing.seqs3.unshift(seq3);
+      if(existing.seqs3.length>FP2_MAX_SAMPLES)existing.seqs3.length=FP2_MAX_SAMPLES;
+      existing.seq3=existing.seqs3[0];
+    }
+    if(Array.isArray(fp))existing.fp=fp;
+    if(ipa)existing.ipa=ipa;
+    existing.ts=Date.now();
+    if(blobUrl){existing.recId=recId;existing.blobUrl=blobUrl;existing.audioUrl=blobUrl;}
+    DB.sw(cu,words);stats();renderTranslatorList();refreshNpMeta();
+    const cnt=existing.seqs3?existing.seqs3.length:(existing.fps2?existing.fps2.length:1);
+    toast('Re-trained: '+cls+' ('+cnt+' sample'+(cnt!==1?'s':'')+')','success');
+  } else {
+    const w={
+      id:'w_'+Date.now(),
+      word:ipa?'/'+ipa+'/':'(sound)',
+      label:cls,
+      lang:'sound',
+      ipa:ipa||'',
+      notes:'translator-sound: '+cls+(ipa?' /'+ipa+'/':''),
+      ts:Date.now(),
+      recId,blobUrl,audioUrl:blobUrl,
+      fp,fp2:fp2||null,fps2:fp2?[fp2]:[],
+      seq3:seq3||null,seqs3:seq3?[seq3]:[],
+      src:'translator-sound'
+    };
+    words.unshift(w);DB.sw(cu,words);stats();renderTranslatorList();refreshNpMeta();
+    toast('Learned: '+cls+(ipa?' /'+ipa+'/':'')+(blobUrl?' [video]':''),'success');
+  }
   if(g('view-vocabulary').classList.contains('active'))renderGrid();
   if(g('view-dashboard').classList.contains('active'))renderRecent();
   if(g('view-recordings').classList.contains('active'))renderRecs();
-  toast('Learned: '+cls+(ipa?' /'+ipa+'/':'')+(blobUrl?' [video]':''),'success');
   clearTranslatorLock(true);
   translatorLastHeard='';translatorLastHeardAt=0;updateTranslatorHeardUI();
 }
@@ -1231,7 +1539,8 @@ function selRec(id){
 
 function playRec(url){
   if(!url)return toast('No audio available','error');
-  new Audio(url).play();
+  const a=new Audio(url);
+  a.play().catch(()=>toast('Playback failed — link may be expired; re-record','error'));
 }
 
 function addWord(){
@@ -1240,7 +1549,7 @@ function addWord(){
   if(!selRecId)return toast('Pick a recording first','error');
   const notes=g('nwn').value.trim();
   const rec=recs.find(r=>r.id===selRecId);
-  const w={id:'w_'+Date.now(),word,notes,ts:Date.now(),recId:selRecId,blobUrl:rec?.blobUrl||null};
+  const w={id:'w_'+Date.now(),word,notes,ts:Date.now(),recId:selRecId,blobUrl:rec?.blobUrl||null,audioUrl:rec?.blobUrl||null};
   words.unshift(w);DB.sw(cu,words);stats();
   selRecId=null;cm('maw');renderGrid();renderRecent();
   toast('Added: '+word,'success');
@@ -1248,26 +1557,32 @@ function addWord(){
 
 function renderRecent(){
   const l=g('rwl');if(!words.length){l.innerHTML='<div class="se">No words yet.</div>';return;}
-  l.innerHTML=[...words].sort((a,b)=>b.ts-a.ts).slice(0,4).map(w=>`
+  l.innerHTML=[...words].sort((a,b)=>b.ts-a.ts).slice(0,4).map(w=>{
+    const u=wordMediaUrl(w);
+    return `
     <div class="wi" onclick="openDetail('${w.id}')">
       <div class="wt" style="background:${hc(w.word)}">></div>
       <div style="flex:1"><div class="wn">${w.word}</div><div class="wm">${ta(w.ts)} &mdash; ${w.recId||'-'}</div></div>
-      <div class="wp" onclick="event.stopPropagation();playWordAudioById('${w.id}')">&#9654;</div>
-    </div>`).join('');
+      ${u?`<div class="wp" onclick="event.stopPropagation();playWordAudioById('${w.id}')">&#9654;</div>`:''}
+    </div>`;
+  }).join('');
 }
 
 function renderGrid(){
   const gr=g('vgrid');if(!words.length){gr.innerHTML='<div class="se" style="grid-column:1/-1">No words yet.</div>';return;}
-  gr.innerHTML=[...words].sort((a,b)=>b.ts-a.ts).map(w=>`
+  gr.innerHTML=[...words].sort((a,b)=>b.ts-a.ts).map(w=>{
+    const u=wordMediaUrl(w);
+    return `
     <div class="vc" onclick="openDetail('${w.id}')">
       <div class="vct" style="background:${hc(w.word)}">></div>
       <div class="vcw">${w.word}</div>
       <div class="vcr">${w.recId||'No rec'} &mdash; ${ta(w.ts)}</div>
       <div class="vca" onclick="event.stopPropagation()">
-        <button class="bt" onclick="playWordAudioById('${w.id}')">&#9654; Play</button>
+        ${u?`<button class="bt" onclick="playWordAudioById('${w.id}')">&#9654; Play</button>`:'<button class="bt" disabled style="opacity:.4">&#9654; Play</button>'}
         <button class="bt danger" onclick="delWord('${w.id}')">X Del</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function delWord(id){words=words.filter(w=>w.id!==id);DB.sw(cu,words);stats();renderGrid();renderRecent();if(g('view-translator').classList.contains('active'))renderTranslatorList();toast('Deleted','');}
@@ -1292,8 +1607,10 @@ function playWordAudio(){
 
 function playWordAudioById(id){
   const w=words.find(x=>x.id===id);
-  if(!w||!w.blobUrl)return toast('No audio linked to this word','error');
-  new Audio(w.blobUrl).play();
+  const url=wordMediaUrl(w);
+  if(!url)return toast('No audio linked to this word','error');
+  const a=new Audio(url);
+  a.play().catch(()=>toast('Playback failed — re-save or re-record this word','error'));
   toast('Playing: '+w.word,'');
 }
 
@@ -1360,6 +1677,229 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape')document.querySelectorAll('.mb').forEach(b=>b.style.display='none');
 });
+// ===== Notepad (sound-language dictation) =====
+let npStream=null,npCtx=null,npAnalyser=null,npSource=null,npFilter=null,npVADRAF=null;
+let npActive=false,npListening=false,npSpeaking=false;
+let npVoiceFrames=0,npSilenceFrames=0,npFrames=[];
+let npManualPending=false;
+const NP_FFT_SIZE=512,NP_BANDS=ALIEN_BANDS;
+const NP_RMS_ON=0.045,NP_RMS_OFF=0.018;
+const NP_VOICE_FRAMES_TO_START=4,NP_SILENCE_FRAMES_TO_END=30;
+const NP_MIN_FRAMES=ALIEN_MIN_FRAMES,NP_MAX_FRAMES=400;
+
+function npSimThreshold(){
+  const el=g('npThresh');return el?(parseInt(el.value,10)/100):0.72;
+}
+function updateNotepadThresh(){
+  const v=g('npThresh');if(!v)return;
+  g('npThreshVal').textContent=v.value+'%';
+}
+function notepadLibSize(){return words.filter(w=>w.src==='translator-sound'&&(hasV3Sample(w)||w.fp2||(Array.isArray(w.fps2)&&w.fps2.length)||Array.isArray(w.fp))).length;}
+function notepadLibModernSize(){return words.filter(w=>w.src==='translator-sound'&&(hasV3Sample(w)||w.fp2||(Array.isArray(w.fps2)&&w.fps2.length))).length;}
+function notepadLibV3Size(){return words.filter(w=>w.src==='translator-sound'&&hasV3Sample(w)).length;}
+function npSetStat(state,text){
+  const s=g('npStat');if(!s)return;
+  s.classList.remove('listening','captured');
+  if(state)s.classList.add(state);
+  g('npStatText').textContent=text;
+}
+function refreshNpMeta(){
+  const m=g('npMeta');if(!m)return;
+  const n=notepadLibSize();
+  const v3=notepadLibV3Size();
+  const modern=notepadLibModernSize();
+  const legacy=n-modern;
+  let txt='Library: '+n+' sound'+(n===1?'':'s')+' learned'+(v3>0?' ('+v3+' with high-accuracy DTW)':'')+'.';
+  if(legacy>0)txt+=' '+legacy+' legacy entr'+(legacy===1?'y':'ies')+' (re-train in Translator → Sound match with "Re-train mode" for best accuracy).';
+  if(!n)txt+=' Teach some in Translator → Sound match (alien).';
+  m.textContent=txt;
+}
+
+async function startNotepadMode(){
+  if(npActive)return;
+  npActive=true;
+  npManualPending=false;
+  refreshNpMeta();npSetStat('','Stopped');
+  setNpListenBtn(false);
+  if(!npStream){
+    try{ npStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false}); }
+    catch(e){ toast('Mic denied: '+e.message,'error'); npActive=false; return; }
+  }
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    npCtx=new Ctx();
+    npSource=npCtx.createMediaStreamSource(npStream);
+    npFilter=npCtx.createBiquadFilter();
+    npFilter.type='highpass';npFilter.frequency.value=120;npFilter.Q.value=0.707;
+    npAnalyser=npCtx.createAnalyser();
+    npAnalyser.fftSize=NP_FFT_SIZE;
+    npAnalyser.smoothingTimeConstant=0.25;
+    npSource.connect(npFilter);
+    npFilter.connect(npAnalyser);
+    if(npCtx.state==='suspended')npCtx.resume();
+  }catch(e){console.warn('Notepad analyser init failed:',e);stopNotepadMode();return;}
+}
+function stopNotepadMode(){
+  if(npListening)stopNotepadListen();
+  npActive=false;
+  if(npSource){try{npSource.disconnect();}catch(_){}npSource=null;}
+  if(npFilter){try{npFilter.disconnect();}catch(_){}npFilter=null;}
+  if(npAnalyser){try{npAnalyser.disconnect();}catch(_){}npAnalyser=null;}
+  if(npCtx){try{npCtx.close();}catch(_){}npCtx=null;}
+  if(npStream){try{npStream.getTracks().forEach(t=>t.stop());}catch(_){}npStream=null;}
+  npSetStat('','Stopped');setNpListenBtn(false);
+}
+function setNpListenBtn(on){
+  const b=g('npListenBtn');if(!b)return;
+  if(on){b.textContent='[] Stop';b.classList.add('recording');}
+  else{b.textContent='o Listen';b.classList.remove('recording');}
+}
+function toggleNotepadListen(){ if(npListening)stopNotepadListen(); else startNotepadListen(); }
+function startNotepadListen(){
+  if(!npActive){toast('Notepad not ready','error');return;}
+  if(!npAnalyser){toast('Mic analyser unavailable','error');return;}
+  if(notepadLibSize()===0){toast('Teach some sounds first in Translator → Sound match','error');return;}
+  if(npListening)return;
+  npListening=true;npSpeaking=false;npVoiceFrames=0;npSilenceFrames=0;npFrames=[];npManualPending=false;
+  setNpListenBtn(true);
+  npSetStat('listening','Listening...');
+  const td=new Uint8Array(npAnalyser.fftSize);
+  const fd=new Uint8Array(npAnalyser.frequencyBinCount);
+  const tick=()=>{
+    if(!npListening)return;
+    npVADRAF=requestAnimationFrame(tick);
+    npAnalyser.getByteTimeDomainData(td);
+    let sum=0;for(let i=0;i<td.length;i++){const v=(td[i]-128)/128;sum+=v*v;}
+    const rms=Math.sqrt(sum/td.length);
+    if(!npSpeaking){
+      if(rms>NP_RMS_ON){
+        npVoiceFrames++;
+        if(npVoiceFrames>=NP_VOICE_FRAMES_TO_START){
+          npSpeaking=true;npFrames=[];npSilenceFrames=0;
+          npSetStat('listening','Capturing word...');
+        }
+      } else { npVoiceFrames=Math.max(0,npVoiceFrames-1); }
+    } else {
+      npAnalyser.getByteFrequencyData(fd);
+      const sr=npCtx?npCtx.sampleRate:48000;
+      const vec=downsampleToBands(fd,NP_BANDS);
+      const mel=logMelBands(fd,sr,NP_FFT_SIZE,NUM_MEL_BANDS);
+      const ph=frameToPhoneme(td,fd,sr,NP_FFT_SIZE,rms);
+      npFrames.push({rms,vec,mel,ph});
+      if(rms<NP_RMS_OFF)npSilenceFrames++; else npSilenceFrames=0;
+      const overrun=npFrames.length>=NP_MAX_FRAMES;
+      if(npSilenceFrames>=NP_SILENCE_FRAMES_TO_END||overrun){
+        npSpeaking=false;npVoiceFrames=0;
+        const frames=npFrames;npFrames=[];
+        processNotepadUtterance(frames);
+        npSetStat('listening','Listening...');
+      }
+    }
+  };
+  npVADRAF=requestAnimationFrame(tick);
+}
+function stopNotepadListen(){
+  npListening=false;npSpeaking=false;npVoiceFrames=0;npSilenceFrames=0;
+  if(npVADRAF){cancelAnimationFrame(npVADRAF);npVADRAF=null;}
+  if(npFrames.length){const f=npFrames;npFrames=[];processNotepadUtterance(f);}
+  setNpListenBtn(false);
+  npSetStat('','Stopped');
+}
+async function recordOneNotepadWord(){
+  if(!npActive)await startNotepadMode();
+  if(!npAnalyser){toast('Mic not ready','error');return;}
+  if(notepadLibSize()===0){toast('Teach some sounds first in Translator → Sound match','error');return;}
+  if(npListening){stopNotepadListen();}
+  npManualPending=true;
+  npSetStat('listening','Speak one word...');
+  const td=new Uint8Array(npAnalyser.fftSize);
+  const fd=new Uint8Array(npAnalyser.frequencyBinCount);
+  let speaking=false,voice=0,silence=0,frames=[];
+  return new Promise(resolve=>{
+    let raf=0;
+    const start=Date.now();
+    const tick=()=>{
+      if(!npManualPending){if(raf)cancelAnimationFrame(raf);resolve();return;}
+      raf=requestAnimationFrame(tick);
+      npAnalyser.getByteTimeDomainData(td);
+      let sum=0;for(let i=0;i<td.length;i++){const v=(td[i]-128)/128;sum+=v*v;}
+      const rms=Math.sqrt(sum/td.length);
+      if(!speaking){
+        if(Date.now()-start>15000){
+          npManualPending=false;cancelAnimationFrame(raf);
+          npSetStat('','Stopped (timeout)');toast('No word detected within 15s','');resolve();return;
+        }
+        if(rms>NP_RMS_ON){voice++;if(voice>=NP_VOICE_FRAMES_TO_START){speaking=true;frames=[];silence=0;npSetStat('listening','Capturing word...');}}
+        else voice=Math.max(0,voice-1);
+      } else {
+        npAnalyser.getByteFrequencyData(fd);
+        const sr=npCtx?npCtx.sampleRate:48000;
+        const vec=downsampleToBands(fd,NP_BANDS);
+        const mel=logMelBands(fd,sr,NP_FFT_SIZE,NUM_MEL_BANDS);
+        const ph=frameToPhoneme(td,fd,sr,NP_FFT_SIZE,rms);
+        frames.push({rms,vec,mel,ph});
+        if(rms<NP_RMS_OFF)silence++; else silence=0;
+        if(silence>=NP_SILENCE_FRAMES_TO_END||frames.length>=NP_MAX_FRAMES){
+          npManualPending=false;cancelAnimationFrame(raf);
+          processNotepadUtterance(frames);
+          npSetStat('','Stopped');resolve();return;
+        }
+      }
+    };
+    raf=requestAnimationFrame(tick);
+  });
+}
+function processNotepadUtterance(frames){
+  if(!frames||frames.length<NP_MIN_FRAMES){npAppendLog('—too short—');renderNpCandidates([],0);return;}
+  const fp=computeFingerprint(frames);
+  const fp2=computeFingerprintV2(frames);
+  const seq3=computeMelSequenceV3(frames);
+  if(!fp&&!fp2&&!seq3){npAppendLog('—no fingerprint—');renderNpCandidates([],0);return;}
+  const {match,sim,top}=findBestAlienMatchAny(fp,fp2,seq3);
+  const thresh=npSimThreshold();
+  const showQ=g('npShowQ')&&g('npShowQ').checked;
+  // Margin check: require winner to beat #2 by a margin to reduce false positives.
+  const second=top[1]?top[1].sim:0;
+  const margin=sim-second;
+  const MIN_MARGIN=0.04;
+  const accepted=match&&sim>=thresh&&(top.length<2||margin>=MIN_MARGIN);
+  renderNpCandidates(top,sim);
+  if(accepted){
+    npAppendWord(match.label,sim);
+  } else if(showQ){
+    npAppendWord('[?]',sim||0);
+  } else if(match){
+    npSetStat('captured','Heard "'+match.label+'" '+(sim*100|0)+'% — below threshold');
+  } else {
+    npSetStat('captured','No match');
+  }
+}
+function renderNpCandidates(top,winnerSim){
+  const c=g('npCands');if(!c)return;
+  if(!top||!top.length){c.innerHTML='';return;}
+  const thresh=npSimThreshold();
+  c.innerHTML='Last guesses: '+top.map((t,i)=>{
+    const pct=(t.sim*100|0);
+    const cls=i===0&&t.sim>=thresh?'npc-win':(i===0?'npc-near':'npc');
+    const tag=t.via?'<span class="npv">'+t.via+'</span>':'';
+    return '<span class="'+cls+'">'+(t.label||'?')+' '+pct+'% '+tag+'</span>';
+  }).join(' &nbsp;|&nbsp; ');
+}
+function npAppendWord(text,sim){
+  const a=g('npArea');if(!a)return;
+  const cur=a.value;
+  const sep=cur.length===0||/[\s\n]$/.test(cur)?'':' ';
+  a.value=cur+sep+text;
+  a.scrollTop=a.scrollHeight;
+  npSetStat('captured','Wrote: '+text+(sim?' ('+(sim*100|0)+'%)':''));
+}
+function npAppendLog(text){ npSetStat('captured',text); }
+function clearNotepad(){const a=g('npArea');if(a){a.value='';a.focus();}npSetStat(npListening?'listening':'',npListening?'Listening...':'Stopped');}
+function copyNotepad(){const a=g('npArea');if(!a)return;
+  if(!a.value){toast('Notepad is empty','error');return;}
+  navigator.clipboard.writeText(a.value).then(()=>toast('Copied','success'),()=>{a.select();document.execCommand('copy');toast('Copied','success');});
+}
+
 window.addEventListener('load',()=>{
   const s=DB.gs();if(s&&DB.gu()[s])loadApp(s);
 });
