@@ -1,6 +1,8 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ExtraTranslational</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
 <style>
 :root{--bg:#151618;--b2:#1e2022;--b3:#252729;--bd:#2e3033;--t:#e8e9ea;--t2:#8b8d91;--t3:#5a5c60;--ac:#3b7de9;--ac2:#2b6dd4;--red:#c0392b;--red2:#a93226;--grn:#27ae60;--r:10px;--fh:'Syne',sans-serif;--fm:'DM Mono',monospace}
 *{margin:0;padding:0;box-sizing:border-box}html,body{height:100%;background:var(--bg);color:var(--t);font-family:var(--fm);font-size:14px}
@@ -101,6 +103,26 @@
 .nr{text-align:center;color:var(--t3);padding:40px 20px;font-size:13px;line-height:2}
 .rpl{background:var(--b3);border-radius:6px;padding:6px 10px;font-size:11px;border:none;color:var(--t2);cursor:pointer;font-family:var(--fm)}
 .rpl:hover{color:var(--t)}
+.det-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;border-radius:8px}
+.det-pill{position:absolute;left:12px;bottom:12px;background:rgba(10,10,11,.78);border:1px solid var(--bd);color:var(--t);font-size:11px;font-family:var(--fm);padding:5px 9px;border-radius:6px;letter-spacing:.04em;display:none;max-width:calc(100% - 24px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.det-pill.on{display:inline-block}
+.det-pill .ldot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--grn);margin-right:6px;vertical-align:middle}
+.tr-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.tr-card{background:var(--b3);border:1px solid var(--bd);border-radius:8px;padding:14px 16px}
+.tr-cap{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.tr-val{font-family:var(--fh);font-size:22px;font-weight:800;min-height:30px;display:flex;align-items:center;gap:8px}
+.tr-val .meta{font-family:var(--fm);font-size:11px;color:var(--t2);font-weight:400}
+.tr-ctrls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.tr-sel{background:var(--b2);border:1px solid var(--bd);color:var(--t);padding:9px 12px;border-radius:8px;font-family:var(--fm);font-size:13px;outline:none}
+.tr-sel:focus{border-color:var(--ac)}
+.tr-toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);user-select:none}
+.tr-list{display:flex;flex-direction:column;gap:6px;margin-top:14px;max-height:240px;overflow-y:auto}
+.tr-item{background:var(--b3);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:12px}
+.tr-item .obj{font-family:var(--fh);font-size:13px;font-weight:700;min-width:90px}
+.tr-item .arrow{color:var(--t3)}
+.tr-item .heard{font-family:var(--fh);font-size:14px;font-weight:700;color:var(--ac)}
+.tr-item .lang{font-size:10px;color:var(--t3);text-transform:uppercase;margin-left:auto}
+.tr-empty{color:var(--t3);font-size:12px;padding:8px 0}
 </style></head><body>
 
 <div id="auth-page"><div class="aw">
@@ -129,6 +151,7 @@
     <div class="sbl">* ET</div>
     <div class="ni active" onclick="nav('dashboard')" id="nav-dashboard"><span class="nic">+</span> Dashboard</div>
     <div class="ni" onclick="nav('livestream')" id="nav-livestream"><span class="nic">o</span> Live stream</div>
+    <div class="ni" onclick="nav('translator')" id="nav-translator"><span class="nic">~</span> Translator</div>
     <div class="ni" onclick="nav('vocabulary')" id="nav-vocabulary"><span class="nic">#</span> Vocabulary</div>
     <div class="ni" onclick="nav('search')" id="nav-search"><span class="nic">@</span> Search</div>
     <div class="ni" onclick="nav('recordings')" id="nav-recordings"><span class="nic">></span> Recordings</div>
@@ -146,7 +169,7 @@
       <div class="pr">
         <div class="pn">
           <div class="pt">o Live stream</div>
-          <div class="sv2" id="svd"><video id="vd" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><div class="sof" id="sofd"><span class="dot"></span> Offline</div><div class="sli" id="sld">LIVE</div></div>
+          <div class="sv2" id="svd"><video id="vd" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><canvas id="cd" class="det-overlay"></canvas><div class="det-pill" id="pdd"><span class="ldot"></span><span id="pddt">Loading detector...</span></div><div class="sof" id="sofd"><span class="dot"></span> Offline</div><div class="sli" id="sld">LIVE</div></div>
           <div class="sc2"><button class="br" id="brd" onclick="toggleRec('d')">o Record</button><button class="bs" onclick="snap('d')">+ Snapshot</button></div>
         </div>
         <div class="pn"><div class="pt">o Recent words</div><div id="rwl"><div class="se">No words yet.</div></div></div>
@@ -156,10 +179,63 @@
     <div class="view" id="view-livestream">
       <div class="pn lf">
         <div class="pt">o Live stream</div>
-        <div class="sv2" id="svl"><video id="vl" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><div class="sof" id="sofl"><span class="dot"></span> Offline</div><div class="sli" id="sll">LIVE</div></div>
+        <div class="sv2" id="svl"><video id="vl" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><canvas id="cl" class="det-overlay"></canvas><div class="det-pill" id="pdl"><span class="ldot"></span><span id="pdlt">Loading detector...</span></div><div class="sof" id="sofl"><span class="dot"></span> Offline</div><div class="sli" id="sll">LIVE</div></div>
         <div class="av" id="av" style="display:none"><span style="font-size:11px;color:var(--t2);margin-right:8px">Audio</span></div>
         <div style="margin-top:14px;display:flex;gap:10px"><button class="br" id="brl" onclick="toggleRec('l')">o Record</button><button class="bs" onclick="snap('l')">+ Snapshot</button></div>
         <div id="snapr" style="margin-top:14px;display:none"><div style="font-size:11px;color:var(--t2);margin-bottom:6px;text-transform:uppercase">Last Snapshot</div><img id="simg" style="width:100%;border-radius:8px;border:1px solid var(--bd)" src="" alt="snapshot"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-translator">
+      <div class="pn lf">
+        <div class="pt">~ Translator</div>
+        <div class="sv2" id="svt"><video id="vt" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;border-radius:8px"></video><canvas id="ct" class="det-overlay"></canvas><div class="det-pill" id="pdt"><span class="ldot"></span><span id="pdtt">Loading detector...</span></div><div class="sof" id="soft"><span class="dot"></span> Offline</div><div class="sli" id="slt">LIVE</div></div>
+
+        <div class="tr-row">
+          <div class="tr-card">
+            <div class="tr-cap">Locked object</div>
+            <div class="tr-val" id="trObj">— <span class="meta" id="trObjScore"></span></div>
+          </div>
+          <div class="tr-card">
+            <div class="tr-cap">Heard (foreign)</div>
+            <div class="tr-val" id="trHeard">— <span class="meta" id="trHeardLang"></span></div>
+          </div>
+        </div>
+
+        <div class="tr-ctrls">
+          <label class="tr-toggle">Mode
+            <select class="tr-sel" id="trMode" onchange="setTranslatorMode(this.value)">
+              <option value="speech">Speech (real language)</option>
+              <option value="sound">Sound match (alien)</option>
+            </select>
+          </label>
+          <label class="tr-toggle" id="trLangWrap">Language
+            <select class="tr-sel" id="trLang" onchange="restartTranslatorRecognition()">
+              <option value="es-ES">Spanish (es-ES)</option>
+              <option value="fr-FR">French (fr-FR)</option>
+              <option value="de-DE">German (de-DE)</option>
+              <option value="it-IT">Italian (it-IT)</option>
+              <option value="pt-BR">Portuguese (pt-BR)</option>
+              <option value="zh-CN">Chinese, Mandarin (zh-CN)</option>
+              <option value="ja-JP">Japanese (ja-JP)</option>
+              <option value="ko-KR">Korean (ko-KR)</option>
+              <option value="hi-IN">Hindi (hi-IN)</option>
+              <option value="ar-SA">Arabic (ar-SA)</option>
+              <option value="ru-RU">Russian (ru-RU)</option>
+              <option value="en-US">English (en-US)</option>
+            </select>
+          </label>
+          <label class="tr-toggle">
+            <input type="checkbox" id="trAuto" checked> Auto-save matches
+          </label>
+          <button class="ba" onclick="saveTranslatorMapping()" id="trSaveBtn">+ Save mapping</button>
+          <button class="br" onclick="toggleAlienRecord()" id="trAlienRec" style="display:none;flex:0 0 auto;padding:10px 14px">o Record sound</button>
+          <button class="bs" onclick="clearTranslatorLock(false)">Next object</button>
+          <button class="bs" onclick="clearTranslatorHeard()">Clear heard</button>
+        </div>
+
+        <div class="tr-cap" style="margin-top:18px">Recent mappings</div>
+        <div class="tr-list" id="trList"><div class="tr-empty">No mappings yet. Aim camera at an object and say its name in the chosen language.</div></div>
       </div>
     </div>
 
@@ -243,6 +319,44 @@ const DB={
 };
 
 let cu=null,words=[],recs=[],isRec=false,recStart=null,detId=null,selRecId=null,wcStream=null,mr=null,chunks=[],blobUrl=null;
+let detModel=null,detModelLoading=null,detRAF=null,detLastTs=0,detPredictions=[];
+const DET_INTERVAL_MS=180,DET_MIN_SCORE=0.55;
+const DET_IGNORE=new Set(['person']);
+window.detLatestClasses=()=>[...new Set(detPredictions.map(p=>p.class))];
+
+// Common spoken aliases / plurals -> canonical COCO class names
+const COCO_ALIASES={
+  phone:'cell phone',cellphone:'cell phone',mobile:'cell phone',iphone:'cell phone',
+  tv:'tv',television:'tv',telly:'tv',monitor:'tv',
+  remote:'remote',controller:'remote',
+  sofa:'couch',settee:'couch',
+  bike:'bicycle',cycle:'bicycle',motorbike:'motorcycle',motorcyle:'motorcycle',
+  plane:'airplane',aeroplane:'airplane',jet:'airplane',
+  laptops:'laptop',keyboards:'keyboard',mice:'mouse',
+  cups:'cup',mugs:'cup',bottles:'bottle',books:'book',phones:'cell phone',
+  bowls:'bowl',forks:'fork',knives:'knife',spoons:'spoon',
+  bananas:'banana',apples:'apple',oranges:'orange',sandwiches:'sandwich',pizzas:'pizza',
+  donuts:'donut',doughnut:'donut',doughnuts:'donut',cakes:'cake',
+  chairs:'chair',couches:'couch',beds:'bed',
+  dogs:'dog',cats:'cat',birds:'bird',horses:'horse',cows:'cow',sheeps:'sheep',
+  cars:'car',trucks:'truck',buses:'bus',bicycles:'bicycle'
+};
+let recRecognition=null,recMatches=[],recHeardClasses=new Set();
+let translatorActive=false,translatorRecognition=null,translatorTopClass=null,translatorTopScore=0,translatorLastHeard='',translatorLastHeardAt=0;
+let translatorLockedClass=null,translatorLockedScore=0,translatorLockedBbox=null,translatorMissingTicks=0;
+let trUtteranceRecorder=null,trUtteranceChunks=[],trUtteranceStartedAt=0,trUtteranceMime='';
+let translatorPendingSnap=null;
+const TR_LOCK_MISSING_LIMIT=12; // ~2.4s tolerance at 5fps
+const TR_MAX_UTTERANCE_MS=20000;
+
+// ===== Alien (sound-match) mode state =====
+let translatorMode='speech';
+let alienCtx=null,alienAnalyser=null,alienSource=null,alienSampleRAF=null;
+let alienActive=false,alienRecording=false,alienFrames=[],alienRecordStartedAt=0,alienAutoStopT=null;
+const ALIEN_FFT_SIZE=512,ALIEN_BANDS=32;
+const ALIEN_MIN_FRAMES=8;
+const ALIEN_SIM_THRESHOLD=0.9;
+const ALIEN_MAX_RECORD_MS=20000;
 const g=id=>document.getElementById(id);
 const tc=['#3b7de9','#27ae60','#d4a017','#7c5cbf','#1a9d8a','#c0392b','#2980b9','#8e44ad'];
 
@@ -266,7 +380,7 @@ function doSignup(){
   const us=DB.gu();if(us[u])return aerr('se','Username taken.');
   us[u]={p:btoa(p),c:Date.now()};DB.su(us);DB.ss(u);loadApp(u);
 }
-function doLogout(){stopCam();if(isRec)stopRec();DB.cs();cu=null;g('app-page').style.display='none';g('auth-page').style.display='flex';}
+function doLogout(){if(isRec)stopRec();stopSpeechRecognition();translatorActive=false;stopTranslatorRecognition();stopAlienRecord();stopAlienListener();stopCam();DB.cs();cu=null;g('app-page').style.display='none';g('auth-page').style.display='flex';}
 function loadApp(u){
   cu=u;words=DB.gw(u);recs=DB.gr(u);
   g('auth-page').style.display='none';g('app-page').style.display='flex';
@@ -278,14 +392,16 @@ function nav(v){
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
   g('view-'+v).classList.add('active');g('nav-'+v).classList.add('active');
-  g('ptitle').textContent={dashboard:'Dashboard',livestream:'Live stream',vocabulary:'Vocabulary',search:'Search',recordings:'Recordings'}[v];
+  g('ptitle').textContent={dashboard:'Dashboard',livestream:'Live stream',translator:'Translator',vocabulary:'Vocabulary',search:'Search',recordings:'Recordings'}[v];
+  if(v!=='translator'&&translatorActive)stopTranslatorMode();
   if(v==='dashboard'){renderRecent();stats();}
   if(v==='vocabulary')renderGrid();
   if(v==='recordings')renderRecs();
   if(v==='search'){g('sinp').value='';renderSearch('');}
+  if(v==='translator')startTranslatorMode();
 }
 function showLive(on){
-  ['d','l'].forEach(id=>{
+  ['d','l','t'].forEach(id=>{
     const o=g('sof'+id),l=g('sl'+id);
     if(o)o.style.display=on?'none':'flex';
     if(l)l.style.display=on?'block':'none';
@@ -295,19 +411,161 @@ async function startCam(){
   if(wcStream)return;
   try{
     wcStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    ['d','l'].forEach(id=>{const v=g('v'+id);if(v){v.srcObject=wcStream;v.style.display='block';}});
+    ['d','l','t'].forEach(id=>{const v=g('v'+id);if(v){v.srcObject=wcStream;v.style.display='block';}});
     showLive(true);
+    startDetector();
   }catch(e){toast('Camera denied: '+e.message,'error');wcStream=null;}
 }
 function stopCam(){
   if(wcStream){wcStream.getTracks().forEach(t=>t.stop());wcStream=null;}
-  ['d','l'].forEach(id=>{const v=g('v'+id);if(v){v.srcObject=null;v.style.display='none';}});
+  ['d','l','t'].forEach(id=>{const v=g('v'+id);if(v){v.srcObject=null;v.style.display='none';}});
   showLive(false);
+  stopDetector();
 }
+function setDetPill(text,on){
+  ['d','l','t'].forEach(id=>{
+    const p=g('pd'+id),t=g('pd'+id+'t');
+    if(t)t.textContent=text;
+    if(p)p.classList.toggle('on',!!on);
+  });
+}
+async function loadDetector(){
+  if(detModel)return detModel;
+  if(detModelLoading)return detModelLoading;
+  if(typeof cocoSsd==='undefined'){
+    setDetPill('Detector unavailable',true);
+    return null;
+  }
+  setDetPill('Loading detector...',true);
+  detModelLoading=cocoSsd.load({base:'lite_mobilenet_v2'}).then(m=>{
+    detModel=m;detModelLoading=null;return m;
+  }).catch(e=>{
+    detModelLoading=null;
+    setDetPill('Detector failed: '+(e.message||e),true);
+    return null;
+  });
+  return detModelLoading;
+}
+function startDetector(){
+  if(detRAF)return;
+  loadDetector();
+  const tick=async ts=>{
+    detRAF=requestAnimationFrame(tick);
+    if(!wcStream||!detModel){return;}
+    if(ts-detLastTs<DET_INTERVAL_MS)return;
+    detLastTs=ts;
+    const v=visibleVideoEl();
+    if(!v||!v.videoWidth||!v.videoHeight)return;
+    let preds=[];
+    try{preds=await detModel.detect(v,10,DET_MIN_SCORE);}
+    catch(e){return;}
+    preds=preds.filter(p=>!DET_IGNORE.has(p.class));
+    if(translatorActive){
+      const savedSet=savedTranslatorClassesForCurrentLang();
+      preds=preds.filter(p=>!savedSet.has(p.class));
+      preds.sort((a,b)=>b.score-a.score);
+      if(translatorLockedClass){
+        const match=preds.find(p=>p.class===translatorLockedClass);
+        if(match){
+          translatorLockedScore=match.score;translatorLockedBbox=match.bbox;
+          translatorMissingTicks=0;
+          preds=[match];
+        } else {
+          translatorMissingTicks++;
+          if(translatorMissingTicks>TR_LOCK_MISSING_LIMIT){
+            clearTranslatorLock(true);
+            preds=[];
+          } else if(translatorLockedBbox){
+            preds=[{class:translatorLockedClass,score:translatorLockedScore,bbox:translatorLockedBbox}];
+          } else { preds=[]; }
+        }
+      } else {
+        const top=preds[0];
+        if(top){
+          translatorLockedClass=top.class;
+          translatorLockedScore=top.score;
+          translatorLockedBbox=top.bbox;
+          translatorMissingTicks=0;
+          preds=[top];
+        } else { preds=[]; }
+      }
+      translatorTopClass=translatorLockedClass||null;
+      translatorTopScore=translatorLockedScore||0;
+      updateTranslatorTopUI();
+    }
+    detPredictions=preds;
+    drawDetections(v,preds);
+  };
+  detRAF=requestAnimationFrame(tick);
+}
+function stopDetector(){
+  if(detRAF){cancelAnimationFrame(detRAF);detRAF=null;}
+  detPredictions=[];
+  ['d','l','t'].forEach(id=>{
+    const c=g('c'+id);
+    if(c){const ctx=c.getContext('2d');if(ctx&&c.width&&c.height)ctx.clearRect(0,0,c.width,c.height);}
+    const p=g('pd'+id);if(p)p.classList.remove('on');
+  });
+}
+function visibleVideoEl(){
+  for(const id of ['t','l','d']){
+    const v=g('v'+id);
+    if(!v||v.style.display==='none')continue;
+    if(v.offsetParent===null)continue;
+    if(v.videoWidth&&v.videoHeight)return v;
+  }
+  return null;
+}
+function drawDetections(v,preds){
+  const id=v.id.slice(-1);
+  const c=g('c'+id);if(!c)return;
+  const rect=v.getBoundingClientRect();
+  const cssW=Math.max(1,rect.width),cssH=Math.max(1,rect.height);
+  const dpr=window.devicePixelRatio||1;
+  const targetW=Math.round(cssW*dpr),targetH=Math.round(cssH*dpr);
+  if(c.width!==targetW||c.height!==targetH){c.width=targetW;c.height=targetH;}
+  c.style.width=cssW+'px';c.style.height=cssH+'px';
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+  const vw=v.videoWidth,vh=v.videoHeight;
+  // video uses object-fit:cover -> compute crop offsets so boxes line up.
+  const vAspect=vw/vh,cAspect=cssW/cssH;
+  let drawW,drawH,offX,offY;
+  if(vAspect>cAspect){
+    drawH=cssH;drawW=vAspect*drawH;offX=(cssW-drawW)/2;offY=0;
+  } else {
+    drawW=cssW;drawH=drawW/vAspect;offX=0;offY=(cssH-drawH)/2;
+  }
+  const sx=drawW/vw,sy=drawH/vh;
+  ctx.lineWidth=2;ctx.font='600 12px DM Mono, monospace';ctx.textBaseline='top';
+  for(const p of preds){
+    const [x,y,w,h]=p.bbox;
+    const X=offX+x*sx,Y=offY+y*sy,W=w*sx,H=h*sy;
+    ctx.strokeStyle='#3b7de9';ctx.fillStyle='rgba(59,125,233,0.18)';
+    ctx.fillRect(X,Y,W,H);ctx.strokeRect(X,Y,W,H);
+    const label=p.class+' '+(p.score*100|0)+'%';
+    const tw=ctx.measureText(label).width+10;
+    const ty=Math.max(0,Y-18);
+    ctx.fillStyle='#3b7de9';ctx.fillRect(X,ty,tw,18);
+    ctx.fillStyle='#fff';ctx.fillText(label,X+5,ty+3);
+  }
+  if(preds.length){
+    const names=[...new Set(preds.map(p=>p.class))].slice(0,6).join(', ');
+    setDetPill('Detected: '+names,true);
+  } else {
+    setDetPill('No objects',true);
+  }
+}
+window.addEventListener('resize',()=>{
+  if(!detPredictions.length)return;
+  const v=visibleVideoEl();if(v)drawDetections(v,detPredictions);
+});
 function toggleRec(ctx){isRec?stopRec():startRec(ctx);}
 async function startRec(ctx){
   await startCam();if(!wcStream)return;
   isRec=true;recStart=Date.now();chunks=[];
+  recMatches=[];recHeardClasses=new Set();
   const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t))||'';
   mr=new MediaRecorder(wcStream,mt?{mimeType:mt}:{});
   mr.ondataavailable=e=>{if(e.data&&e.data.size>0)chunks.push(e.data);};
@@ -315,20 +573,622 @@ async function startRec(ctx){
   const av=g('av');
   if(av){av.style.display='flex';for(let i=0;i<28;i++){const b=document.createElement('div');b.className='vb';b.style.cssText=`height:${Math.random()*20+4}px;animation-duration:${Math.random()*.4+.4}s;animation-delay:${Math.random()*.3}s`;av.appendChild(b);}}
   ['d','l'].forEach(id=>{const b=g('br'+id);if(b){b.textContent='[] Stop';b.classList.add('recording');}});
+  startSpeechRecognition();
   toast('Recording started','success');
 }
 function stopRec(){
   if(mr&&mr.state!=='inactive')mr.stop();isRec=false;
   const av=g('av');if(av){av.style.display='none';av.innerHTML='<span style="font-size:11px;color:var(--t2);margin-right:8px">Audio</span>';}
   ['d','l'].forEach(id=>{const b=g('br'+id);if(b){b.textContent='o Record';b.classList.remove('recording');}});
+  stopSpeechRecognition();
 }
 function finishRec(){
   const dur=Math.round((Date.now()-recStart)/1000);
   if(blobUrl)URL.revokeObjectURL(blobUrl);
   const blob=new Blob(chunks,{type:chunks[0]?.type||'video/webm'});
   blobUrl=URL.createObjectURL(blob);
-  const r={id:'rec_'+String(recs.length+1).padStart(3,'0'),ts:Date.now(),dur,blobUrl};
-  recs.unshift(r);DB.sr(cu,recs);stats();toast('Saved: '+r.id,'success');
+  const matches=recMatches.slice();
+  const r={id:'rec_'+String(recs.length+1).padStart(3,'0'),ts:Date.now(),dur,blobUrl,matches};
+  recs.unshift(r);DB.sr(cu,recs);stats();
+  if(matches.length){
+    const summary=[...new Set(matches.map(m=>m.class))].join(', ');
+    toast('Saved '+r.id+' — matched: '+summary,'success');
+  } else {
+    toast('Saved: '+r.id+' (no speech↔object matches)','success');
+  }
+  if(g('view-recordings').classList.contains('active'))renderRecs();
+}
+
+function startSpeechRecognition(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Speech matching needs Chrome/Edge (Web Speech API)','error');return;}
+  try{recRecognition&&recRecognition.stop&&recRecognition.stop();}catch(_){}
+  recRecognition=new SR();
+  recRecognition.continuous=true;
+  recRecognition.interimResults=false;
+  recRecognition.lang='en-US';
+  recRecognition.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];if(!res.isFinal)continue;
+      const text=res[0].transcript;
+      if(text)checkSpeechMatches(text);
+    }
+  };
+  recRecognition.onerror=ev=>{
+    if(ev&&ev.error&&ev.error!=='no-speech'&&ev.error!=='aborted')
+      console.warn('SpeechRecognition error:',ev.error);
+  };
+  recRecognition.onend=()=>{ if(isRec){ try{recRecognition.start();}catch(_){} } };
+  try{recRecognition.start();}catch(_){}
+}
+function stopSpeechRecognition(){
+  if(!recRecognition)return;
+  try{recRecognition.onend=null;recRecognition.stop();}catch(_){}
+  recRecognition=null;
+}
+function normWord(w){return w.toLowerCase().replace(/[^a-z]+/g,'');}
+function expandAliases(words){
+  const set=new Set(words);
+  for(const w of words){const a=COCO_ALIASES[w];if(a){a.split(' ').forEach(x=>set.add(x));set.add(a);} }
+  return set;
+}
+function classMatchesWords(cls,wordSet){
+  const parts=cls.toLowerCase().split(' ');
+  if(parts.length===1)return wordSet.has(parts[0]);
+  return parts.every(p=>wordSet.has(p));
+}
+function checkSpeechMatches(text){
+  const tokens=text.toLowerCase().split(/[^a-z]+/).map(normWord).filter(Boolean);
+  if(!tokens.length)return;
+  const wordSet=expandAliases(tokens);
+  const onScreen=[...new Set(detPredictions.map(p=>p.class))];
+  for(const cls of onScreen){
+    if(classMatchesWords(cls,wordSet)){
+      if(recHeardClasses.has(cls))continue;
+      recHeardClasses.add(cls);
+      recMatches.push({class:cls,text:text.trim(),at:Date.now()-recStart});
+      toast('Match: '+cls+' — heard "'+text.trim()+'"','success');
+    }
+  }
+}
+
+// ===== Translator Mode =====
+function translatorLang(){return (g('trLang')&&g('trLang').value)||'es-ES';}
+function savedTranslatorClassesForCurrentLang(){
+  if(translatorMode==='sound'){
+    return new Set(words.filter(w=>w.src==='translator-sound'&&w.label).map(w=>w.label));
+  }
+  const lang=translatorLang();
+  return new Set(words.filter(w=>w.src==='translator'&&w.lang===lang&&w.label).map(w=>w.label));
+}
+function setTranslatorMode(m){
+  if(m!=='speech'&&m!=='sound')m='speech';
+  translatorMode=m;
+  const wrap=g('trLangWrap');if(wrap)wrap.style.display=m==='sound'?'none':'inline-flex';
+  const recBtn=g('trAlienRec');if(recBtn)recBtn.style.display=m==='sound'?'inline-flex':'none';
+  const autoLbl=g('trAuto');if(autoLbl){const lbl=autoLbl.parentElement;if(lbl)lbl.style.display=m==='sound'?'none':'inline-flex';}
+  if(translatorActive){
+    if(m==='speech'){stopAlienRecord();stopAlienListener();startTranslatorRecognition();}
+    else {stopTranslatorRecognition();startAlienListener();}
+  }
+  renderTranslatorList();
+  updateTranslatorHeardUI();
+}
+function startTranslatorMode(){
+  if(translatorActive)return;
+  translatorActive=true;translatorTopClass=null;translatorTopScore=0;
+  clearTranslatorLock(true,true);
+  translatorLastHeard='';translatorLastHeardAt=0;
+  discardTranslatorPendingSnap();
+  updateTranslatorTopUI();updateTranslatorHeardUI();renderTranslatorList();
+  const sel=g('trMode');if(sel)translatorMode=sel.value||'speech';
+  const wrap=g('trLangWrap');if(wrap)wrap.style.display=translatorMode==='sound'?'none':'inline-flex';
+  const recBtn=g('trAlienRec');if(recBtn)recBtn.style.display=translatorMode==='sound'?'inline-flex':'none';
+  const auto=g('trAuto');if(auto){const lbl=auto.parentElement;if(lbl)lbl.style.display=translatorMode==='sound'?'none':'inline-flex';}
+  startCam().then(()=>{
+    if(translatorMode==='speech')startTranslatorRecognition();
+    else startAlienListener();
+  });
+}
+function stopTranslatorMode(){
+  translatorActive=false;
+  stopTranslatorRecognition();
+  stopAlienRecord();
+  stopAlienListener();
+  trAbortUtterance();
+  discardTranslatorPendingSnap();
+  clearTranslatorLock(true,true);
+  translatorTopClass=null;translatorTopScore=0;
+  if(g('view-translator').classList.contains('active'))return;
+  if(!isRec)stopCam();
+}
+function clearTranslatorLock(silent,suppressUI){
+  translatorLockedClass=null;translatorLockedScore=0;
+  translatorLockedBbox=null;translatorMissingTicks=0;
+  if(!suppressUI){translatorTopClass=null;translatorTopScore=0;updateTranslatorTopUI();}
+  if(!silent)toast('Lock cleared — point at next object','');
+}
+function trStartUtteranceRecording(){
+  if(trUtteranceRecorder)return;
+  if(!wcStream)return;
+  const mt=['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm','video/mp4'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+  try{
+    trUtteranceRecorder=new MediaRecorder(wcStream,mt?{mimeType:mt}:{});
+  }catch(e){console.warn('utterance recorder init failed:',e);trUtteranceRecorder=null;return;}
+  trUtteranceMime=mt||'video/webm';
+  trUtteranceChunks=[];
+  trUtteranceStartedAt=Date.now();
+  trUtteranceRecorder.ondataavailable=e=>{ if(e.data&&e.data.size)trUtteranceChunks.push(e.data); };
+  try{trUtteranceRecorder.start(200);}catch(e){console.warn('utterance recorder start failed:',e);trUtteranceRecorder=null;}
+  setTimeout(()=>{
+    if(trUtteranceRecorder&&Date.now()-trUtteranceStartedAt>=TR_MAX_UTTERANCE_MS){
+      trStopUtteranceRecording().then(snap=>{ if(snap)setTranslatorPendingSnap(snap); });
+    }
+  },TR_MAX_UTTERANCE_MS+250);
+}
+function trStopUtteranceRecording(){
+  return new Promise(resolve=>{
+    if(!trUtteranceRecorder){resolve(null);return;}
+    const r=trUtteranceRecorder;
+    const mt=trUtteranceMime;
+    const startedAt=trUtteranceStartedAt;
+    r.onstop=()=>{
+      try{
+        const type=trUtteranceChunks[0]?.type||mt||'video/webm';
+        const blob=new Blob(trUtteranceChunks,{type});
+        const url=URL.createObjectURL(blob);
+        const dur=Math.max(1,Math.round((Date.now()-startedAt)/1000));
+        trUtteranceRecorder=null;trUtteranceChunks=[];
+        resolve({url,dur,type});
+      }catch(_){trUtteranceRecorder=null;trUtteranceChunks=[];resolve(null);}
+    };
+    try{r.stop();}catch(_){trUtteranceRecorder=null;trUtteranceChunks=[];resolve(null);}
+  });
+}
+function setTranslatorPendingSnap(snap){
+  if(translatorPendingSnap&&translatorPendingSnap.url&&translatorPendingSnap!==snap){
+    try{URL.revokeObjectURL(translatorPendingSnap.url);}catch(_){}
+  }
+  translatorPendingSnap=snap||null;
+}
+function discardTranslatorPendingSnap(){
+  if(translatorPendingSnap&&translatorPendingSnap.url){
+    try{URL.revokeObjectURL(translatorPendingSnap.url);}catch(_){}
+  }
+  translatorPendingSnap=null;
+}
+async function trAbortUtterance(){
+  if(trUtteranceRecorder){
+    const snap=await trStopUtteranceRecording();
+    if(snap&&snap.url){try{URL.revokeObjectURL(snap.url);}catch(_){}}
+  }
+}
+function startTranslatorRecognition(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Translator needs Chrome/Edge (Web Speech API)','error');return;}
+  stopTranslatorRecognition();
+  const lang=(g('trLang')&&g('trLang').value)||'es-ES';
+  translatorRecognition=new SR();
+  translatorRecognition.continuous=true;
+  translatorRecognition.interimResults=true;
+  translatorRecognition.lang=lang;
+  translatorRecognition.onspeechstart=()=>{ if(translatorActive&&translatorLockedClass)trStartUtteranceRecording(); };
+  translatorRecognition.onresult=async e=>{
+    let interim='',finalText='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];
+      if(res.isFinal)finalText+=res[0].transcript;
+      else interim+=res[0].transcript;
+    }
+    if(interim){
+      if(translatorActive&&translatorLockedClass&&!trUtteranceRecorder)trStartUtteranceRecording();
+      translatorLastHeard=interim.trim();translatorLastHeardAt=Date.now();
+      updateTranslatorHeardUI(true);
+    }
+    if(finalText){
+      translatorLastHeard=finalText.trim();translatorLastHeardAt=Date.now();
+      updateTranslatorHeardUI(false);
+      let snap=null;
+      if(trUtteranceRecorder)snap=await trStopUtteranceRecording();
+      if(snap)setTranslatorPendingSnap(snap);
+      const auto=g('trAuto');
+      if(auto&&auto.checked)maybeAutoSaveTranslator();
+    }
+  };
+  translatorRecognition.onspeechend=async ()=>{
+    if(trUtteranceRecorder){
+      const snap=await trStopUtteranceRecording();
+      if(snap)setTranslatorPendingSnap(snap);
+    }
+  };
+  translatorRecognition.onerror=ev=>{
+    if(ev&&ev.error&&ev.error!=='no-speech'&&ev.error!=='aborted')
+      console.warn('Translator SR error:',ev.error);
+  };
+  translatorRecognition.onend=()=>{ if(translatorActive){ try{translatorRecognition.start();}catch(_){} } };
+  try{translatorRecognition.start();}catch(_){}
+}
+function stopTranslatorRecognition(){
+  if(!translatorRecognition)return;
+  try{translatorRecognition.onend=null;translatorRecognition.stop();}catch(_){}
+  translatorRecognition=null;
+}
+function restartTranslatorRecognition(){ if(translatorActive){trAbortUtterance();discardTranslatorPendingSnap();startTranslatorRecognition();} }
+function clearTranslatorHeard(){ translatorLastHeard='';translatorLastHeardAt=0;discardTranslatorPendingSnap();updateTranslatorHeardUI(); }
+
+function updateTranslatorTopUI(){
+  const v=g('trObj'),s=g('trObjScore');if(!v||!s)return;
+  if(translatorTopClass){
+    v.firstChild.nodeValue=translatorTopClass+' ';
+    s.textContent='('+(translatorTopScore*100|0)+'%)';
+  } else { v.firstChild.nodeValue='— ';s.textContent=''; }
+}
+function updateTranslatorHeardUI(isInterim){
+  const v=g('trHeard'),m=g('trHeardLang');if(!v||!m)return;
+  v.firstChild.nodeValue=(translatorLastHeard||'—')+' ';
+  const lang=(g('trLang')&&g('trLang').value)||'';
+  m.textContent=lang?(isInterim?'('+lang+', listening...)':'('+lang+')'):'';
+}
+function maybeAutoSaveTranslator(){
+  if(!translatorLockedClass||!translatorLastHeard)return;
+  if(Date.now()-translatorLastHeardAt>4000)return;
+  saveTranslatorMapping(true);
+}
+function saveTranslatorMapping(silentIfDup){
+  if(!translatorLockedClass){toast('Aim camera at an object first','error');return;}
+  if(!translatorLastHeard){toast('Say the foreign word for it first','error');return;}
+  const cls=translatorLockedClass;
+  const lang=translatorLang();
+  const word=translatorLastHeard.trim();
+  const existing=words.find(w=>w.src==='translator'&&w.label===cls&&w.lang===lang);
+  if(existing){
+    if(!silentIfDup)toast('Already saved: '+cls+' → '+existing.word+' ('+lang+')','');
+    discardTranslatorPendingSnap();
+    clearTranslatorLock(true);translatorLastHeard='';updateTranslatorHeardUI();
+    return;
+  }
+  const snap=translatorPendingSnap;translatorPendingSnap=null;
+  let recId=null,blobUrl=null,recType='';
+  if(snap&&snap.url){
+    recId='rec_'+String(recs.length+1).padStart(3,'0');
+    blobUrl=snap.url;recType=snap.type||'video/webm';
+    const r={
+      id:recId,ts:Date.now(),dur:snap.dur||1,blobUrl,
+      type:recType,
+      src:'translator',
+      matches:[{class:cls,text:word,at:0}],
+      label:cls,word,lang
+    };
+    recs.unshift(r);DB.sr(cu,recs);
+  }
+  const w={
+    id:'w_'+Date.now(),
+    word,
+    label:cls,
+    lang,
+    notes:'translator: '+cls+' ↔ '+word+' ('+lang+')',
+    ts:Date.now(),
+    recId,
+    blobUrl,
+    audioUrl:blobUrl,
+    src:'translator'
+  };
+  words.unshift(w);DB.sw(cu,words);stats();renderTranslatorList();
+  if(g('view-vocabulary').classList.contains('active'))renderGrid();
+  if(g('view-dashboard').classList.contains('active'))renderRecent();
+  if(g('view-recordings').classList.contains('active'))renderRecs();
+  toast('Saved: '+cls+' → '+word+' ('+lang+')'+(blobUrl?' [video]':''),'success');
+  clearTranslatorLock(true);
+  translatorLastHeard='';translatorLastHeardAt=0;updateTranslatorHeardUI();
+}
+function renderTranslatorList(){
+  const l=g('trList');if(!l)return;
+  const items=words.filter(w=>w.src==='translator'||w.src==='translator-sound').slice(0,16);
+  if(!items.length){l.innerHTML='<div class="tr-empty">No mappings yet. Aim camera at an object and '+(translatorMode==='sound'?'make any sound':'say its name in the chosen language')+'.</div>';return;}
+  l.innerHTML=items.map(w=>{
+    const isSound=w.src==='translator-sound';
+    let heard;
+    if(isSound){
+      heard=w.ipa?'<span title="estimated IPA">/'+w.ipa+'/</span>':'<em>(alien sound)</em>';
+    } else { heard=w.word; }
+    const lang=isSound?'sound':(w.lang||'');
+    return `
+    <div class="tr-item">
+      <div class="obj">${w.label||'?'}</div>
+      <div class="arrow">&rarr;</div>
+      <div class="heard">${heard}</div>
+      <div class="lang">${lang}</div>
+      ${w.audioUrl?`<button class="wp" title="Play recording" onclick="playWordAudioById('${w.id}')">&#9654;</button>`:''}
+      <button class="bdr" title="Delete" onclick="delWord('${w.id}');renderTranslatorList();">X</button>
+    </div>`;
+  }).join('');
+}
+
+// ===== Alien sound mode (manual record button) =====
+function startAlienListener(){
+  if(alienActive)return;
+  if(!wcStream){toast('Camera/mic not started','error');return;}
+  const tracks=wcStream.getAudioTracks();
+  if(!tracks.length){toast('No audio track on stream','error');return;}
+  let stream;try{stream=new MediaStream(tracks);}catch(_){stream=wcStream;}
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    alienCtx=new Ctx();
+    alienSource=alienCtx.createMediaStreamSource(stream);
+    alienAnalyser=alienCtx.createAnalyser();
+    alienAnalyser.fftSize=ALIEN_FFT_SIZE;
+    alienAnalyser.smoothingTimeConstant=0.4;
+    alienSource.connect(alienAnalyser);
+    if(alienCtx.state==='suspended')alienCtx.resume();
+  }catch(e){console.warn('Alien analyser init failed:',e);stopAlienListener();return;}
+  alienActive=true;alienFrames=[];
+  setAlienRecordBtn(false);
+}
+function stopAlienListener(){
+  stopAlienRecord();
+  alienActive=false;
+  if(alienSource){try{alienSource.disconnect();}catch(_){}alienSource=null;}
+  if(alienAnalyser){try{alienAnalyser.disconnect();}catch(_){}alienAnalyser=null;}
+  if(alienCtx){try{alienCtx.close();}catch(_){}alienCtx=null;}
+  alienFrames=[];
+  setAlienRecordBtn(false);
+}
+function toggleAlienRecord(){
+  if(!translatorActive){toast('Open Translator first','error');return;}
+  if(translatorMode!=='sound'){toast('Switch to Sound match mode','error');return;}
+  if(alienRecording)stopAlienRecord(true); else startAlienRecord();
+}
+function startAlienRecord(){
+  if(alienRecording)return;
+  if(!alienActive)startAlienListener();
+  if(!alienAnalyser){toast('Mic analyser not ready','error');return;}
+  alienRecording=true;
+  alienFrames=[];
+  alienRecordStartedAt=Date.now();
+  trStartUtteranceRecording();
+  setAlienRecordBtn(true);
+  translatorLastHeard='Recording... 0.0s';translatorLastHeardAt=Date.now();
+  updateTranslatorHeardUI(true);
+  const td=new Uint8Array(alienAnalyser.fftSize);
+  const fd=new Uint8Array(alienAnalyser.frequencyBinCount);
+  const tick=()=>{
+    if(!alienRecording)return;
+    alienSampleRAF=requestAnimationFrame(tick);
+    alienAnalyser.getByteTimeDomainData(td);
+    let sum=0;for(let i=0;i<td.length;i++){const v=(td[i]-128)/128;sum+=v*v;}
+    const rms=Math.sqrt(sum/td.length);
+    alienAnalyser.getByteFrequencyData(fd);
+    const vec=downsampleToBands(fd,ALIEN_BANDS);
+    const ph=frameToPhoneme(td,fd,alienCtx?alienCtx.sampleRate:48000,ALIEN_FFT_SIZE,rms);
+    alienFrames.push({rms,vec,ph});
+    const elapsed=(Date.now()-alienRecordStartedAt)/1000;
+    translatorLastHeard='Recording... '+elapsed.toFixed(1)+'s';translatorLastHeardAt=Date.now();
+    updateTranslatorHeardUI(true);
+  };
+  alienSampleRAF=requestAnimationFrame(tick);
+  if(alienAutoStopT){clearTimeout(alienAutoStopT);alienAutoStopT=null;}
+  alienAutoStopT=setTimeout(()=>{ if(alienRecording){toast('Auto-stopped at '+(ALIEN_MAX_RECORD_MS/1000)+'s','');stopAlienRecord(true);} },ALIEN_MAX_RECORD_MS);
+}
+async function stopAlienRecord(processResult){
+  if(!alienRecording){
+    if(alienSampleRAF){cancelAnimationFrame(alienSampleRAF);alienSampleRAF=null;}
+    setAlienRecordBtn(false);
+    return;
+  }
+  alienRecording=false;
+  if(alienSampleRAF){cancelAnimationFrame(alienSampleRAF);alienSampleRAF=null;}
+  if(alienAutoStopT){clearTimeout(alienAutoStopT);alienAutoStopT=null;}
+  const frames=alienFrames;alienFrames=[];
+  setAlienRecordBtn(false);
+  let snap=null;
+  if(trUtteranceRecorder)snap=await trStopUtteranceRecording();
+  if(snap)setTranslatorPendingSnap(snap);
+  if(!processResult){discardTranslatorPendingSnap();return;}
+  const fp=computeFingerprint(frames);
+  const ipa=compactPhonemeSequence(frames.map(f=>f.ph));
+  handleAlienResult(fp,frames.length,ipa);
+}
+function setAlienRecordBtn(isRecording){
+  const b=g('trAlienRec');if(!b)return;
+  if(isRecording){
+    b.textContent='[] Stop & save';
+    b.classList.add('recording');
+  } else {
+    b.textContent='o Record sound';
+    b.classList.remove('recording');
+  }
+}
+function frameToPhoneme(td,fd,sampleRate,fftSize,rms){
+  if(rms<0.025)return '';
+  // Zero-crossing rate: high ZCR -> noisy/fricative; low ZCR -> voiced/vowel
+  let zc=0;
+  for(let i=1;i<td.length;i++){ if((td[i-1]>=128)!==(td[i]>=128))zc++; }
+  const zcr=zc/td.length;
+  // Find spectral peaks (local maxima with min height)
+  const binHz=sampleRate/fftSize;
+  const peaks=[];
+  for(let i=2;i<fd.length-2;i++){
+    if(fd[i]>60&&fd[i]>=fd[i-1]&&fd[i]>=fd[i+1]&&fd[i]>=fd[i-2]&&fd[i]>=fd[i+2]){
+      peaks.push({hz:i*binHz,mag:fd[i]});
+    }
+  }
+  // Spectral centroid for fricative classification
+  let totMag=0,totW=0;
+  for(let i=2;i<fd.length;i++){ totMag+=fd[i]; totW+=fd[i]*i*binHz; }
+  const centroid=totMag>0?totW/totMag:0;
+  if(zcr>0.20||(rms<0.06&&zcr>0.14)){
+    // Unvoiced fricative / sibilant
+    if(centroid>5500)return 'ʃ';
+    if(centroid>4000)return 's';
+    if(centroid>3000)return 'f';
+    if(centroid>1800)return 'h';
+    return 't';
+  }
+  // Voiced: pick F1 (lowest meaningful peak) and F2 (next peak in ~900-3000 Hz)
+  let F1=0,F2=0;
+  const sortedByHz=peaks.slice().sort((a,b)=>a.hz-b.hz);
+  for(const p of sortedByHz){
+    if(p.hz<200)continue;
+    if(F1===0&&p.hz<1100){F1=p.hz;continue;}
+    if(F1>0&&F2===0&&p.hz>F1+200&&p.hz<3000){F2=p.hz;break;}
+  }
+  if(F1===0&&F2===0){
+    // Voiced but no clear formants → schwa-ish
+    return 'ə';
+  }
+  if(F1===0)F1=F2-1000;
+  if(F2===0)F2=F1*2.2;
+  const vowels=[
+    {sym:'i',f1:300,f2:2300}, {sym:'ɪ',f1:400,f2:2000},
+    {sym:'e',f1:500,f2:2000},
+    {sym:'ɛ',f1:600,f2:1800}, {sym:'æ',f1:700,f2:1700},
+    {sym:'ʌ',f1:650,f2:1300}, {sym:'ɑ',f1:730,f2:1100},
+    {sym:'ɔ',f1:600,f2:850},  {sym:'o',f1:450,f2:800},
+    {sym:'ʊ',f1:400,f2:850},  {sym:'u',f1:330,f2:800},
+    {sym:'ə',f1:500,f2:1500}
+  ];
+  let best=null,bestD=Infinity;
+  for(const v of vowels){
+    const d1=(v.f1-F1)/700, d2=(v.f2-F2)/2000;
+    const d=d1*d1+d2*d2;
+    if(d<bestD){bestD=d;best=v;}
+  }
+  return best?best.sym:'ə';
+}
+function compactPhonemeSequence(arr){
+  const filtered=[];
+  for(const ph of arr){if(ph)filtered.push(ph);}
+  if(!filtered.length)return '';
+  // Collapse runs of identical symbols, but keep at least 2 frames before counting (avoid jitter)
+  const out=[];
+  let prev=null,run=0,pending=null,pendRun=0;
+  for(const ph of filtered){
+    if(ph===prev){run++;continue;}
+    if(prev!==null&&run>=2){
+      if(out.length===0||out[out.length-1]!==prev)out.push(prev);
+    }
+    prev=ph;run=1;
+  }
+  if(prev!==null&&run>=2){
+    if(out.length===0||out[out.length-1]!==prev)out.push(prev);
+  }
+  // If too aggressive a filter cleared everything, fall back to majority symbol
+  if(!out.length){
+    const counts={};
+    for(const ph of filtered)counts[ph]=(counts[ph]||0)+1;
+    let bestSym='',bestC=0;
+    for(const k in counts)if(counts[k]>bestC){bestC=counts[k];bestSym=k;}
+    if(bestSym)out.push(bestSym);
+  }
+  return out.join('');
+}
+function downsampleToBands(fd,bands){
+  const len=fd.length;const out=new Float32Array(bands);
+  for(let b=0;b<bands;b++){
+    const start=Math.floor(b*len/bands),end=Math.floor((b+1)*len/bands);
+    let s=0,n=Math.max(1,end-start);
+    for(let i=start;i<end;i++)s+=fd[i];
+    out[b]=s/n/255;
+  }
+  return out;
+}
+function computeFingerprint(frames){
+  if(!frames||frames.length<ALIEN_MIN_FRAMES)return null;
+  const sorted=[...frames].sort((a,b)=>b.rms-a.rms);
+  const top=sorted.slice(0,Math.max(8,Math.floor(frames.length*0.6)));
+  const bands=top[0].vec.length;
+  const acc=new Float32Array(bands);
+  for(const f of top)for(let i=0;i<bands;i++)acc[i]+=f.vec[i];
+  for(let i=0;i<bands;i++)acc[i]/=top.length;
+  let nrm=0;for(let i=0;i<bands;i++)nrm+=acc[i]*acc[i];
+  nrm=Math.sqrt(nrm)||1;
+  const out=new Array(bands);
+  for(let i=0;i<bands;i++)out[i]=acc[i]/nrm;
+  return out;
+}
+function cosSim(a,b){
+  if(!a||!b||a.length!==b.length)return 0;
+  let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];
+  return s;
+}
+function findBestAlienMatch(fp){
+  let best=null,bestSim=-1;
+  for(const w of words){
+    if(w.src!=='translator-sound'||!Array.isArray(w.fp))continue;
+    const s=cosSim(fp,w.fp);
+    if(s>bestSim){bestSim=s;best=w;}
+  }
+  return {match:best,sim:bestSim};
+}
+function handleAlienResult(fp,frameCount,ipa){
+  if(!fp){
+    translatorLastHeard='';updateTranslatorHeardUI();
+    if(frameCount<ALIEN_MIN_FRAMES)toast('Sound too short — try a longer utterance','error');
+    return;
+  }
+  const ipaText=ipa||'';
+  const {match,sim}=findBestAlienMatch(fp);
+  if(translatorLockedClass){
+    const cls=translatorLockedClass;
+    const existing=words.find(w=>w.src==='translator-sound'&&w.label===cls);
+    if(existing){
+      toast('Already learned: '+cls+' (/'+(existing.ipa||'?')+'/) — delete to relearn','');
+      discardTranslatorPendingSnap();clearTranslatorLock(true);
+      translatorLastHeard='';updateTranslatorHeardUI();
+      return;
+    }
+    if(match&&sim>=ALIEN_SIM_THRESHOLD&&match.label!==cls){
+      toast('Heads up: sound is '+(sim*100|0)+'% similar to "'+match.label+'"','');
+    }
+    saveAlienMapping(cls,fp,ipaText);
+  } else {
+    if(match&&sim>=ALIEN_SIM_THRESHOLD){
+      translatorLastHeard='Recognized: '+match.label+' /'+(match.ipa||ipaText||'?')+'/ ('+(sim*100|0)+'%)';
+      updateTranslatorHeardUI(false);
+      toast('Recognized: '+match.label+' ('+(sim*100|0)+'%)','success');
+    } else {
+      translatorLastHeard=ipaText?'/'+ipaText+'/'+(match?' (closest '+match.label+' '+(sim*100|0)+'%)':' (no match)'):
+                                  (match?'Closest: '+match.label+' '+(sim*100|0)+'%':'No match');
+      updateTranslatorHeardUI(false);
+      if(match)toast('Closest match: '+match.label+' ('+(sim*100|0)+'%) /'+ipaText+'/','');
+      else toast('Sound not recognized — /'+ipaText+'/','');
+    }
+    discardTranslatorPendingSnap();
+  }
+}
+function saveAlienMapping(cls,fp,ipa){
+  const snap=translatorPendingSnap;translatorPendingSnap=null;
+  let recId=null,blobUrl=null;
+  if(snap&&snap.url){
+    recId='rec_'+String(recs.length+1).padStart(3,'0');
+    blobUrl=snap.url;
+    const r={
+      id:recId,ts:Date.now(),dur:snap.dur||1,blobUrl,type:snap.type||'video/webm',
+      src:'translator-sound',
+      matches:[{class:cls,text:ipa?'/'+ipa+'/':'(alien sound)',at:0}],
+      label:cls,word:ipa?'/'+ipa+'/':'(sound)',lang:'sound',ipa:ipa||''
+    };
+    recs.unshift(r);DB.sr(cu,recs);
+  }
+  const w={
+    id:'w_'+Date.now(),
+    word:ipa?'/'+ipa+'/':'(sound)',
+    label:cls,
+    lang:'sound',
+    ipa:ipa||'',
+    notes:'translator-sound: '+cls+(ipa?' /'+ipa+'/':''),
+    ts:Date.now(),
+    recId,blobUrl,audioUrl:blobUrl,
+    fp,
+    src:'translator-sound'
+  };
+  words.unshift(w);DB.sw(cu,words);stats();renderTranslatorList();
+  if(g('view-vocabulary').classList.contains('active'))renderGrid();
+  if(g('view-dashboard').classList.contains('active'))renderRecent();
+  if(g('view-recordings').classList.contains('active'))renderRecs();
+  toast('Learned: '+cls+(ipa?' /'+ipa+'/':'')+(blobUrl?' [video]':''),'success');
+  clearTranslatorLock(true);
+  translatorLastHeard='';translatorLastHeardAt=0;updateTranslatorHeardUI();
 }
 function snap(ctx){
   const v=g('v'+ctx);
@@ -410,7 +1270,7 @@ function renderGrid(){
     </div>`).join('');
 }
 
-function delWord(id){words=words.filter(w=>w.id!==id);DB.sw(cu,words);stats();renderGrid();renderRecent();toast('Deleted','');}
+function delWord(id){words=words.filter(w=>w.id!==id);DB.sw(cu,words);stats();renderGrid();renderRecent();if(g('view-translator').classList.contains('active'))renderTranslatorList();toast('Deleted','');}
 
 function openDetail(id){
   const w=words.find(x=>x.id===id);if(!w)return;detId=id;
@@ -439,13 +1299,23 @@ function playWordAudioById(id){
 
 function renderRecs(){
   const l=g('recl');if(!recs.length){l.innerHTML='<div class="nr">No recordings yet.</div>';return;}
-  l.innerHTML=recs.map(r=>`
+  l.innerHTML=recs.map(r=>{
+    const m=Array.isArray(r.matches)?r.matches:[];
+    const matchHtml=m.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:2px">
+          ${m.map(x=>`<span title='heard: "${(x.text||'').replace(/"/g,'&quot;')}" @ ${(x.at/1000).toFixed(1)}s'
+            style="background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.4);color:#5fd28a;font-size:11px;padding:2px 8px;border-radius:999px;font-family:var(--fm)">
+            ${x.class}</span>`).join('')}
+        </div>`
+      : `<div style="font-size:11px;color:var(--t3);margin-top:2px">No speech &harr; object matches</div>`;
+    return `
     <div class="ri">
       <div style="display:flex;align-items:center;gap:14px">
         <div style="color:var(--ac);font-size:20px;flex-shrink:0">O</div>
         <div style="flex:1">
           <div class="rin">${r.id}</div>
           <div class="rid">${new Date(r.ts).toLocaleString()} &mdash; ${fd(r.dur)}</div>
+          ${matchHtml}
         </div>
         <div style="display:flex;gap:8px">
           ${r.blobUrl?`<a href="${r.blobUrl}" download="${r.id}.webm" style="text-decoration:none"><div class="bpr" title="Download">v</div></a>`:''}
@@ -453,7 +1323,8 @@ function renderRecs(){
         </div>
       </div>
       ${r.blobUrl?`<video src="${r.blobUrl}" controls style="width:100%;border-radius:8px;border:1px solid var(--bd);background:#000;max-height:220px"></video>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function delRec(id){recs=recs.filter(r=>r.id!==id);DB.sr(cu,recs);stats();renderRecs();toast('Deleted','');}
