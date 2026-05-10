@@ -138,6 +138,9 @@
 .np-meta{font-size:11px;color:var(--t3);margin-top:6px}
 .np-slider{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2)}
 .np-slider input{accent-color:var(--ac)}
+.np-preview{margin-top:10px;padding:10px 12px;background:var(--b3);border:1px solid var(--bd);border-radius:8px;display:none}
+.np-preview-cap{font-size:11px;color:var(--t3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.np-preview audio{width:100%;max-width:420px;height:36px;vertical-align:middle}
 </style></head><body>
 
 <div id="auth-page"><div class="aw">
@@ -278,6 +281,10 @@
         </div>
         <div class="np-meta" id="npMeta">Library: 0 sounds learned. Teach more in Translator → Sound match (alien).</div>
         <div class="np-cands" id="npCands"></div>
+        <div class="np-preview" id="npPreview">
+          <div class="np-preview-cap" id="npPreviewCap">Last capture — play to hear what was matched</div>
+          <audio id="npPreviewAudio" controls preload="metadata"></audio>
+        </div>
       </div>
     </div>
 
@@ -1682,6 +1689,7 @@ let npStream=null,npCtx=null,npAnalyser=null,npSource=null,npFilter=null,npVADRA
 let npActive=false,npListening=false,npSpeaking=false;
 let npVoiceFrames=0,npSilenceFrames=0,npFrames=[];
 let npManualPending=false;
+let npUtteranceMr=null,npUtteranceChunks=[],npLastPreviewUrl=null;
 const NP_FFT_SIZE=512,NP_BANDS=ALIEN_BANDS;
 const NP_RMS_ON=0.045,NP_RMS_OFF=0.018;
 const NP_VOICE_FRAMES_TO_START=4,NP_SILENCE_FRAMES_TO_END=30;
@@ -1715,6 +1723,68 @@ function refreshNpMeta(){
   m.textContent=txt;
 }
 
+function npPickNotepadRecMime(){
+  return ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t))||'';
+}
+function npStartUtteranceRecorder(){
+  if(!npStream)return;
+  if(npUtteranceMr){
+    try{npUtteranceMr.stop();}catch(_){}
+    npUtteranceMr=null;npUtteranceChunks=[];
+  }
+  const mt=npPickNotepadRecMime();
+  try{npUtteranceMr=new MediaRecorder(npStream,mt?{mimeType:mt}:{});}
+  catch(e){console.warn('Notepad MediaRecorder:',e);npUtteranceMr=null;return;}
+  npUtteranceChunks=[];
+  npUtteranceMr.ondataavailable=e=>{if(e.data&&e.data.size)npUtteranceChunks.push(e.data);};
+  try{npUtteranceMr.start(80);}catch(e){npUtteranceMr=null;}
+}
+function npStopUtteranceRecorder(){
+  return new Promise(resolve=>{
+    if(!npUtteranceMr){resolve(null);return;}
+    const r=npUtteranceMr;
+    npUtteranceMr=null;
+    r.onstop=()=>{
+      const type=npUtteranceChunks[0]?.type||'audio/webm';
+      const blob=npUtteranceChunks.length?new Blob(npUtteranceChunks,{type}):null;
+      npUtteranceChunks=[];
+      resolve(blob&&blob.size?blob:null);
+    };
+    try{r.stop();}catch(_){npUtteranceChunks=[];resolve(null);}
+  });
+}
+function npAbortUtteranceRecorder(){
+  if(!npUtteranceMr)return;
+  try{
+    const r=npUtteranceMr;
+    npUtteranceMr=null;
+    r.onstop=()=>{npUtteranceChunks=[];};
+    r.stop();
+  }catch(_){npUtteranceMr=null;npUtteranceChunks=[];}
+}
+function showNotepadCapturePreview(blob){
+  const wrap=g('npPreview'),aud=g('npPreviewAudio'),cap=g('npPreviewCap');
+  if(!wrap||!aud)return;
+  if(npLastPreviewUrl){try{URL.revokeObjectURL(npLastPreviewUrl);}catch(_){}npLastPreviewUrl=null;}
+  aud.pause();
+  if(!blob||!blob.size){
+    wrap.style.display='none';
+    aud.removeAttribute('src');
+    if(cap)cap.textContent='Last capture — play to hear what was matched';
+    return;
+  }
+  npLastPreviewUrl=URL.createObjectURL(blob);
+  aud.src=npLastPreviewUrl;
+  if(cap)cap.textContent='Last capture — '+((blob.size/1024)|0)+' KB · press play to verify';
+  wrap.style.display='block';
+}
+function npHideCapturePreview(){
+  const wrap=g('npPreview'),aud=g('npPreviewAudio');
+  if(aud){try{aud.pause();}catch(_){}aud.removeAttribute('src');}
+  if(wrap)wrap.style.display='none';
+  if(npLastPreviewUrl){try{URL.revokeObjectURL(npLastPreviewUrl);}catch(_){}npLastPreviewUrl=null;}
+}
+
 async function startNotepadMode(){
   if(npActive)return;
   npActive=true;
@@ -1740,7 +1810,9 @@ async function startNotepadMode(){
   }catch(e){console.warn('Notepad analyser init failed:',e);stopNotepadMode();return;}
 }
 function stopNotepadMode(){
-  if(npListening)stopNotepadListen();
+  if(npListening)void stopNotepadListen();
+  npAbortUtteranceRecorder();
+  npHideCapturePreview();
   npActive=false;
   if(npSource){try{npSource.disconnect();}catch(_){}npSource=null;}
   if(npFilter){try{npFilter.disconnect();}catch(_){}npFilter=null;}
@@ -1754,7 +1826,7 @@ function setNpListenBtn(on){
   if(on){b.textContent='[] Stop';b.classList.add('recording');}
   else{b.textContent='o Listen';b.classList.remove('recording');}
 }
-function toggleNotepadListen(){ if(npListening)stopNotepadListen(); else startNotepadListen(); }
+function toggleNotepadListen(){ if(npListening)void stopNotepadListen(); else startNotepadListen(); }
 function startNotepadListen(){
   if(!npActive){toast('Notepad not ready','error');return;}
   if(!npAnalyser){toast('Mic analyser unavailable','error');return;}
@@ -1776,6 +1848,7 @@ function startNotepadListen(){
         npVoiceFrames++;
         if(npVoiceFrames>=NP_VOICE_FRAMES_TO_START){
           npSpeaking=true;npFrames=[];npSilenceFrames=0;
+          npStartUtteranceRecorder();
           npSetStat('listening','Capturing word...');
         }
       } else { npVoiceFrames=Math.max(0,npVoiceFrames-1); }
@@ -1791,19 +1864,29 @@ function startNotepadListen(){
       if(npSilenceFrames>=NP_SILENCE_FRAMES_TO_END||overrun){
         npSpeaking=false;npVoiceFrames=0;
         const frames=npFrames;npFrames=[];
-        processNotepadUtterance(frames);
+        npStopUtteranceRecorder().then(blob=>{
+          showNotepadCapturePreview(blob);
+          processNotepadUtterance(frames);
+        });
         npSetStat('listening','Listening...');
       }
     }
   };
   npVADRAF=requestAnimationFrame(tick);
 }
-function stopNotepadListen(){
+async function stopNotepadListen(){
   npListening=false;npSpeaking=false;npVoiceFrames=0;npSilenceFrames=0;
   if(npVADRAF){cancelAnimationFrame(npVADRAF);npVADRAF=null;}
-  if(npFrames.length){const f=npFrames;npFrames=[];processNotepadUtterance(f);}
+  const pending=npFrames;npFrames=[];
   setNpListenBtn(false);
   npSetStat('','Stopped');
+  if(pending.length){
+    const blob=await npStopUtteranceRecorder();
+    showNotepadCapturePreview(blob);
+    processNotepadUtterance(pending);
+  }else{
+    npAbortUtteranceRecorder();
+  }
 }
 async function recordOneNotepadWord(){
   if(!npActive)await startNotepadMode();
@@ -1829,7 +1912,7 @@ async function recordOneNotepadWord(){
           npManualPending=false;cancelAnimationFrame(raf);
           npSetStat('','Stopped (timeout)');toast('No word detected within 15s','');resolve();return;
         }
-        if(rms>NP_RMS_ON){voice++;if(voice>=NP_VOICE_FRAMES_TO_START){speaking=true;frames=[];silence=0;npSetStat('listening','Capturing word...');}}
+        if(rms>NP_RMS_ON){voice++;if(voice>=NP_VOICE_FRAMES_TO_START){speaking=true;frames=[];silence=0;npStartUtteranceRecorder();npSetStat('listening','Capturing word...');}}
         else voice=Math.max(0,voice-1);
       } else {
         npAnalyser.getByteFrequencyData(fd);
@@ -1841,7 +1924,10 @@ async function recordOneNotepadWord(){
         if(rms<NP_RMS_OFF)silence++; else silence=0;
         if(silence>=NP_SILENCE_FRAMES_TO_END||frames.length>=NP_MAX_FRAMES){
           npManualPending=false;cancelAnimationFrame(raf);
-          processNotepadUtterance(frames);
+          npStopUtteranceRecorder().then(blob=>{
+            showNotepadCapturePreview(blob);
+            processNotepadUtterance(frames);
+          });
           npSetStat('','Stopped');resolve();return;
         }
       }
@@ -1850,7 +1936,11 @@ async function recordOneNotepadWord(){
   });
 }
 function processNotepadUtterance(frames){
-  if(!frames||frames.length<NP_MIN_FRAMES){npAppendLog('—too short—');renderNpCandidates([],0);return;}
+  if(!frames||frames.length<NP_MIN_FRAMES){
+    npAppendLog('—too short—');renderNpCandidates([],0);
+    npAbortUtteranceRecorder();
+    return;
+  }
   const fp=computeFingerprint(frames);
   const fp2=computeFingerprintV2(frames);
   const seq3=computeMelSequenceV3(frames);
@@ -1894,7 +1984,7 @@ function npAppendWord(text,sim){
   npSetStat('captured','Wrote: '+text+(sim?' ('+(sim*100|0)+'%)':''));
 }
 function npAppendLog(text){ npSetStat('captured',text); }
-function clearNotepad(){const a=g('npArea');if(a){a.value='';a.focus();}npSetStat(npListening?'listening':'',npListening?'Listening...':'Stopped');}
+function clearNotepad(){const a=g('npArea');if(a){a.value='';a.focus();}npHideCapturePreview();npSetStat(npListening?'listening':'',npListening?'Listening...':'Stopped');}
 function copyNotepad(){const a=g('npArea');if(!a)return;
   if(!a.value){toast('Notepad is empty','error');return;}
   navigator.clipboard.writeText(a.value).then(()=>toast('Copied','success'),()=>{a.select();document.execCommand('copy');toast('Copied','success');});
